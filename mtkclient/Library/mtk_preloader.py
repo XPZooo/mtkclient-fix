@@ -149,7 +149,6 @@ class Preloader(metaclass=LogBase):
         readsocid = self.config.readsocid
         skipwdt = self.config.skipwdt
 
-        self.info("Status: Waiting for PreLoader VCOM, please reconnect mobile to brom mode")
         self.config.set_gui_status(self.config.tr("Status: Waiting for connection"))
         res = False
         maxtries = 100

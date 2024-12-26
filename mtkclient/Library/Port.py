@@ -152,7 +152,7 @@ class Port(metaclass=LogBase):
 
     def handshake(self, maxtries=None, loop=0):
         counter = 0
-
+        print("mtk[wait-dev-connect]")
         while not self.cdc.connected:
             try:
                 if maxtries is not None and counter == maxtries:

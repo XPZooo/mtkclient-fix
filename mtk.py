@@ -4,7 +4,7 @@
 import argparse
 from mtkclient.Library.mtk_main import Main, metamodes
 
-info = "MTK Flash/Exploit Client Public V2.0.1 (c) B.Kerler 2018-2024"
+info = ""
 
 cmds = {
     "printgpt": "Print GPT Table information",
@@ -43,7 +43,7 @@ cmds = {
 
 
 def main():
-    print(info)
+    #print(info)
     print("")
     parser = argparse.ArgumentParser(description=info)
     subparsers = parser.add_subparsers(dest="cmd",
