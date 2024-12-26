@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
-# (c) B.Kerler 2018-2023 GPLv3 License
+# (c) B.Kerler 2018-2024 GPLv3 License
 from capstone import (Cs, CS_MODE_BIG_ENDIAN, CS_MODE_LITTLE_ENDIAN,
                       CS_ARCH_ARM, CS_ARCH_ARM64, CS_ARCH_MIPS,
                       CS_ARCH_X86, CS_ARCH_SPARC, CS_ARCH_SYSZ, CS_ARCH_XCORE,
@@ -175,12 +175,14 @@ def main():
 
     parser.add_argument(
         '--disasm', '-disasm',
-        help='Disasm: arm[arm,thumb,mclass,v8],arm64[arm],mips[micro,3,32R6,GP64],x86[16,32,64],ppc[64],sparc[32,64,v9],systemz,xcore',
+        help='Disasm: arm[arm,thumb,mclass,v8],arm64[arm],mips[micro,3,32R6,GP64],' +
+             'x86[16,32,64],ppc[64],sparc[32,64,v9],systemz,xcore',
         default='')
 
     parser.add_argument(
         '--asm', '-asm',
-        help='Asm: arm[arm,thumb,mclass,v8],arm64[arm],mips[micro,32,64,32R6,32R6-Micro],x86[16,32,64],ppc[32,64,qpx],sparc[None,v9],systemz,hexagon',
+        help='Asm: arm[arm,thumb,mclass,v8],arm64[arm],mips[micro,32,64,32R6,32R6-Micro]' +
+             ',x86[16,32,64],ppc[32,64,qpx],sparc[None,v9],systemz,hexagon',
         default='')
 
     parser.add_argument(

@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
-# (c) B.Kerler 2018-2023 GPLv3 License
+# (c) B.Kerler 2018-2024 GPLv3 License
 ErrorCodes = {
     0x0: "OK",
     # COMMON
@@ -486,6 +486,7 @@ ErrorCodes = {
     0x5002: "IMG_LOCK_NO_SPACE_ADD_LOCK_INFO",
     0x5003: "IMG_LOCK_THIS_IMG_INFO_NOT_EXIST",
     0x5004: "IMG_LOCK_MAGIC_ERROR",
+    0x5A5B: "DA_IN_BLACKLIST",
     0x6000: "SBC_KEY_NOT_FOUND",
     0x6001: "BR_SEC_CFG_NOT_FOUND",
     0x6002: "ERR_PUBK_NOT_INITIALIZED",
@@ -977,7 +978,8 @@ ErrorCodes_Legacy = {
     3232: "S_DA_UPDATE_BOOTLOADER_NOT_CONTAIN_CRITICAL_DATA",
     3233: "S_DA_DUMP_FLASH_LAYOUT_FAIL",
     3234: "S_DA_BMT_NO_INIT",
-    3235: "S_DA_NOR_PROGRAM_REGION_IS_OVERLAP"
+    3235: "S_DA_NOR_PROGRAM_REGION_IS_OVERLAP",
+    0x5A5B: "S_DA_IN_BLACKLIST"
 }
 
 

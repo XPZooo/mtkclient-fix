@@ -3,19 +3,17 @@ import os
 import hashlib
 import logging
 from io import BytesIO
-from mtkclient.Library.utils import structhelper_io
+from mtkclient.Library.utils import StructhelperIo, logsetup
 from mtkclient.Library.utils import LogBase
-from mtkclient.config.mtk_config import Mtk_Config
+from mtkclient.config.mtk_config import MtkConfig
 
 
-class seccfgV4(metaclass=LogBase):
-    def __init__(self, hwc, mtk, loglevel=logging.INFO):
-        self.__logger = self.__logger
-        self.info = self.__logger.info
-        self.error = self.__logger.error
-        self.warning = self.__logger.warning
+class SecCfgV4(metaclass=LogBase):
+    def __init__(self, _hwc, mtk, loglevel=logging.INFO):
+        self.__logger, self.info, self.debug, self.warning, self.error = logsetup(self, self.__logger,
+                                                                                  loglevel, mtk.config.gui)
         self.hwtype = None
-        self.hwc = hwc
+        self.hwc = _hwc
         self.mtk = mtk
         self.magic = 0x4D4D4D4D
         self.seccfg_ver = None
@@ -33,37 +31,40 @@ class seccfgV4(metaclass=LogBase):
         else:
             self.__logger.setLevel(logging.INFO)
 
-    def parse(self, data):
-        rf = structhelper_io(BytesIO(bytearray(data)))
-        self.magic = rf.dword()
-        self.seccfg_ver = rf.dword()
-        self.seccfg_size = rf.dword()
-        self.lock_state = rf.dword()
-        self.critical_lock_state = rf.dword()
-        self.sboot_runtime = rf.dword()
-        self.endflag = rf.dword()
-        rf.seek(self.seccfg_size - 0x20)
-        self.hash = rf.bytes(0x20)
+    def parse(self, indata):
+        rrf = StructhelperIo(BytesIO(bytearray(indata)))
+        self.magic = rrf.dword()
+        self.seccfg_ver = rrf.dword()
+        self.seccfg_size = rrf.dword()
+        self.lock_state = rrf.dword()
+        self.critical_lock_state = rrf.dword()
+        self.sboot_runtime = rrf.dword()
+        self.endflag = rrf.dword()
+        rrf.seek(self.seccfg_size - 0x20)
+        self.hash = rrf.bytes(0x20)
         if self.magic != 0x4D4D4D4D or self.endflag != 0x45454545:
             self.error("Unknown V4 seccfg structure !")
             return False
         seccfg_data = pack("<IIIIIII", self.magic, self.seccfg_ver, self.seccfg_size, self.lock_state,
                            self.critical_lock_state, self.sboot_runtime, 0x45454545)
-        hash = hashlib.sha256(seccfg_data).digest()
+        _hash = hashlib.sha256(seccfg_data).digest()
         dec_hash = self.hwc.sej.sej_sec_cfg_sw(self.hash, False)
-        if hash == dec_hash:
+        if _hash == dec_hash:
             self.hwtype = "SW"
         else:
             dec_hash = self.hwc.sej.sej_sec_cfg_hw(self.hash, False)
-            if hash == dec_hash:
+            if _hash == dec_hash:
                 self.hwtype = "V2"
             else:
                 dec_hash = self.hwc.sej.sej_sec_cfg_hw_V3(self.hash, False)
-                if hash == dec_hash:
+                if _hash == dec_hash:
                     self.hwtype = "V3"
                 else:
-                    return False
-        return True
+                    dec_hash = self.hwc.sej.sej_sec_cfg_hw_V3(self.hash, False, legacy=True)
+                    if _hash == dec_hash:
+                        self.hwtype = "V4"
+                    else:
+                        return False
 
         """
         LKS_DEFAULT = 0x01
@@ -77,6 +78,7 @@ class seccfgV4(metaclass=LogBase):
         SBOOT_RUNTIME_OFF = 0
         SBOOT_RUNTIME_ON  = 1
         """
+        return True
 
     def create(self, lockflag: str = "unlock"):
         if lockflag == "lock" and self.lock_state == 1:
@@ -94,23 +96,25 @@ class seccfgV4(metaclass=LogBase):
         dec_hash = hashlib.sha256(seccfg_data).digest()
         enc_hash = b""
         if self.hwtype == "SW":
-            enc_hash = self.hwc.sej.sej_sec_cfg_sw(dec_hash, True)
+            enc_hash = self.hwc.sej.sej_sec_cfg_sw(dec_hash, encrypt=True)
         elif self.hwtype == "V2":
-            enc_hash = self.hwc.sej.sej_sec_cfg_hw(dec_hash, True)
+            enc_hash = self.hwc.sej.sej_sec_cfg_hw(dec_hash, encrypt=True)
         elif self.hwtype == "V3":
-            enc_hash = self.hwc.sej.sej_sec_cfg_hw_V3(dec_hash, True)
-        data = seccfg_data + enc_hash
-        while len(data) % 0x200 != 0:
-            data += b"\x00"
-        return True, bytearray(data)
+            enc_hash = self.hwc.sej.sej_sec_cfg_hw_V3(dec_hash, encrypt=True)
+        elif self.hwtype == "V4":
+            enc_hash = self.hwc.sej.sej_sec_cfg_hw_V3(dec_hash, encrypt=True, legacy=True)
+        indata = seccfg_data + enc_hash
+        while len(indata) % 0x200 != 0:
+            indata += b"\x00"
+        return True, bytearray(indata)
 
 
-class SECCFG_STATUS:
+class SeccfgStatus:
     SEC_CFG_COMPLETE_NUM = 0x43434343  # CCCC
     SEC_CFG_INCOMPLETE_NUM = 0x49494949  # IIII
 
 
-class SECCFG_ATTR:
+class SeccfgAttr:
     ATTR_LOCK = 0x6000
     ATTR_VERIFIED = 0x6001
     ATTR_CUSTOM = 0x6002
@@ -119,35 +123,33 @@ class SECCFG_ATTR:
     ATTR_UNLOCK = 0x44444444
 
 
-class SIU_STATUS:
+class SiuStatus:
     UBOOT_UPDATED_BY_SIU = 0x0001
     BOOT_UPDATED_BY_SIU = 0x0010
     RECOVERY_UPDATED_BY_SIU = 0x0100
     SYSTEM_UPDATED_BY_SIU = 0x1000
 
 
-class ROM_TYPE:
+class RomType:
     NORMAL_ROM = 0x01
     YAFFS_IMG = 0x08
 
 
-class SEC_IMG_ATTR:
+class SecImgAttr:
     ATTR_SEC_IMG_UPDATE = 0x10,
     ATTR_SEC_IMG_COMPLETE = 0x43434343,  # CCCC
     ATTR_SEC_IMG_INCOMPLETE = 0x49494949,  # IIII
     ATTR_SEC_IMG_FORCE_UPDATE = 0x46464646  # FFFF
 
 
-class seccfgV3(metaclass=LogBase):
-    def __init__(self, hwc, mtk, loglevel=logging.INFO):
-        self.__logger = self.__logger
-        self.info = self.__logger.info
-        self.error = self.__logger.error
-        self.warning = self.__logger.warning
+class SecCfgV3(metaclass=LogBase):
+    def __init__(self, _hwc, mtk, loglevel=logging.INFO):
+        self.__logger, self.info, self.debug, self.warning, self.error = logsetup(self, self.__logger,
+                                                                                  loglevel, mtk.config.gui)
         self.hwtype = None
         self.data = None
         self.org_data = None
-        self.hwc = hwc
+        self.hwc = _hwc
         self.mtk = mtk
         self.info_header = b"AND_SECCFG_v\x00\x00\x00\x00"
         self.magic = 0x4D4D4D4D
@@ -162,11 +164,11 @@ class seccfgV3(metaclass=LogBase):
         self.page_count = 0
         self.imginfo = b"\x00" * (0x68 * 20)
         self.siu_status = 0
-        self.seccfg_status = SECCFG_STATUS.SEC_CFG_COMPLETE_NUM
-        self.seccfg_attr = SECCFG_ATTR.ATTR_DEFAULT
+        self.seccfg_status = SeccfgStatus.SEC_CFG_COMPLETE_NUM
+        self.seccfg_attr = SeccfgAttr.ATTR_DEFAULT
         self.seccfg_ext = b"\x00" * 0x1004
         if self.hwc.read32 is not None:
-            self.setotp(hwc)
+            self.setotp(_hwc)
         if loglevel == logging.DEBUG:
             logfilename = os.path.join("logs", "log.txt")
             fh = logging.FileHandler(logfilename, encoding='utf-8')
@@ -175,7 +177,7 @@ class seccfgV3(metaclass=LogBase):
         else:
             self.__logger.setLevel(logging.INFO)
 
-    def setotp(self, hwc):
+    def setotp(self, _hwc):
         otp = None
         if self.mtk.config.preloader is not None:
             idx = self.mtk.config.preloader.find(b"\x4D\x4D\x4D\x01\x30")
@@ -183,75 +185,79 @@ class seccfgV3(metaclass=LogBase):
                 otp = self.mtk.config.preloader[idx + 0xC:idx + 0xC + 32]
         if otp is None:
             otp = 32 * b"\x00"
-        hwc.sej.sej_set_otp(otp)
+        _hwc.sej.sej_set_otp(otp)
 
-    def parse(self, data):
-        if data[:0x10] != b"AND_SECCFG_v\x00\x00\x00\x00":
+    def parse(self, indata):
+        if indata[:0x10] != b"AND_SECCFG_v\x00\x00\x00\x00":
             return False
-        rf = structhelper_io(BytesIO(bytearray(data)))
-        self.info_header = rf.bytes(0x10)
-        self.magic = rf.dword()
-        self.seccfg_ver = rf.dword()
-        self.seccfg_size = rf.dword()
-        self.seccfg_enc_offset = rf.dword()
-        self.seccfg_enc_len = rf.dword()  # 0x1 = Locked, 0xF207 = Unlocked
-        self.sw_sec_lock_try = rf.bytes(1)
-        self.sw_sec_lock_done = rf.bytes(1)
-        self.page_size = rf.short()
-        self.page_count = rf.dword()
-        self.data = rf.bytes(self.seccfg_size - 0x2C - 4)
-        self.endflag = rf.dword()
+        rrf = StructhelperIo(BytesIO(bytearray(indata)))
+        self.info_header = rrf.bytes(0x10)
+        self.magic = rrf.dword()
+        self.seccfg_ver = rrf.dword()
+        self.seccfg_size = rrf.dword()
+        self.seccfg_enc_offset = rrf.dword()
+        self.seccfg_enc_len = rrf.dword()  # 0x1 = Locked, 0xF207 = Unlocked
+        self.sw_sec_lock_try = rrf.bytes(1)
+        self.sw_sec_lock_done = rrf.bytes(1)
+        self.page_size = rrf.short()
+        self.page_count = rrf.dword()
+        self.data = rrf.bytes(self.seccfg_size - 0x2C - 4)
+        self.endflag = rrf.dword()
         if self.magic != 0x4D4D4D4D or self.endflag != 0x45454545:
             self.error("Unknown V3 seccfg structure !")
             return False
-        ret = self.hwc.sej.sej_sec_cfg_sw(self.data, False)
-        if ret[:4] not in [b"IIII", b"CCCC", b"\x00\x00\x00\x00"]:
-            ret = self.hwc.sej.sej_sec_cfg_hw_V3(self.data, False)
-            if ret[:4] not in [b"IIII", b"CCCC", b"\x00\x00\x00\x00"]:
-                ret = self.hwc.sej.sej_sec_cfg_hw(self.data, False)
-                if ret[:4] not in [b"IIII", b"CCCC", b"\x00\x00\x00\x00"]:
-                    self.error("Unknown V3 seccfg encryption !")
-                    return False
+        err = self.hwc.sej.sej_sec_cfg_sw(self.data, encrypt=False)
+        if err[:4] not in [b"IIII", b"CCCC", b"\x00\x00\x00\x00"]:
+            err = self.hwc.sej.sej_sec_cfg_hw_V3(self.data, encrypt=False)
+            if err[:4] not in [b"IIII", b"CCCC", b"\x00\x00\x00\x00"]:
+                err = self.hwc.sej.sej_sec_cfg_hw(self.data, encrypt=False)
+                if err[:4] not in [b"IIII", b"CCCC", b"\x00\x00\x00\x00"]:
+                    err = self.hwc.sej.sej_sec_cfg_hw_V3(self.data, encrypt=False, legacy=True)
+                    if err[:4] not in [b"IIII", b"CCCC", b"\x00\x00\x00\x00"]:
+                        self.error("Unknown V3 seccfg encryption !")
+                        return False
+                    else:
+                        self.hwtype = "V4"
                 else:
                     self.hwtype = "V3"
             else:
                 self.hwtype = "V2"
         else:
             self.hwtype = "SW"
-        self.org_data = ret
-        ed = structhelper_io(BytesIO(bytearray(ret)))
+        self.org_data = err
+        ed = StructhelperIo(BytesIO(bytearray(err)))
         self.imginfo = [ed.bytes(0x68) for _ in range(20)]
         self.siu_status = ed.dword()
         self.seccfg_status = ed.dword()
-        if self.seccfg_status not in [SECCFG_STATUS.SEC_CFG_COMPLETE_NUM, SECCFG_STATUS.SEC_CFG_INCOMPLETE_NUM]:
+        if self.seccfg_status not in [SeccfgStatus.SEC_CFG_COMPLETE_NUM, SeccfgStatus.SEC_CFG_INCOMPLETE_NUM]:
             return False
         self.seccfg_attr = ed.dword()
-        if self.seccfg_attr not in [SECCFG_ATTR.ATTR_DEFAULT, SECCFG_ATTR.ATTR_UNLOCK, SECCFG_ATTR.ATTR_MP_DEFAULT,
-                                    SECCFG_ATTR.ATTR_LOCK, SECCFG_ATTR.ATTR_CUSTOM, SECCFG_ATTR.ATTR_VERIFIED]:
+        if self.seccfg_attr not in [SeccfgAttr.ATTR_DEFAULT, SeccfgAttr.ATTR_UNLOCK, SeccfgAttr.ATTR_MP_DEFAULT,
+                                    SeccfgAttr.ATTR_LOCK, SeccfgAttr.ATTR_CUSTOM, SeccfgAttr.ATTR_VERIFIED]:
             return False
         self.seccfg_ext = ed.bytes(0x1000 + 4)
         return True
 
     def create(self, lockflag: str = "unlock"):
-        seccfg_attr_new = SECCFG_ATTR.ATTR_DEFAULT
+        seccfg_attr_new = SeccfgAttr.ATTR_DEFAULT
         if lockflag == "unlock":
             self.seccfg_enc_len = 0x07F20000
-            seccfg_attr_new = SECCFG_ATTR.ATTR_UNLOCK
+            seccfg_attr_new = SeccfgAttr.ATTR_UNLOCK
         elif lockflag == "lock":
             self.seccfg_enc_len = 0x01000000
-            seccfg_attr_new = SECCFG_ATTR.ATTR_DEFAULT
+            seccfg_attr_new = SeccfgAttr.ATTR_DEFAULT
 
-        if lockflag == "lock" and self.seccfg_attr != SECCFG_ATTR.ATTR_UNLOCK:
+        if lockflag == "lock" and self.seccfg_attr != SeccfgAttr.ATTR_UNLOCK:
             return False, "Can't find lock state, current (%#x)" % self.seccfg_attr
-        elif lockflag == "unlock" and self.seccfg_attr != SECCFG_ATTR.ATTR_DEFAULT \
-                and self.seccfg_attr != SECCFG_ATTR.ATTR_MP_DEFAULT \
-                and self.seccfg_attr != SECCFG_ATTR.ATTR_CUSTOM \
-                and self.seccfg_attr != SECCFG_ATTR.ATTR_VERIFIED \
-                and self.seccfg_attr != SECCFG_ATTR.ATTR_LOCK:
+        elif lockflag == "unlock" and self.seccfg_attr != SeccfgAttr.ATTR_DEFAULT \
+                and self.seccfg_attr != SeccfgAttr.ATTR_MP_DEFAULT \
+                and self.seccfg_attr != SeccfgAttr.ATTR_CUSTOM \
+                and self.seccfg_attr != SeccfgAttr.ATTR_VERIFIED \
+                and self.seccfg_attr != SeccfgAttr.ATTR_LOCK:
             return False, "Can't find unlock state, current (%#x)" % self.seccfg_attr
 
-        data = bytearray()
-        wf = BytesIO(data)
+        indata = bytearray()
+        wf = BytesIO(indata)
         wf.write(self.info_header)
         wf.write(int.to_bytes(self.magic, 4, 'little'))
         wf.write(int.to_bytes(self.seccfg_ver, 4, 'little'))
@@ -265,42 +271,46 @@ class seccfgV3(metaclass=LogBase):
 
         ed = BytesIO()
         for imginfo in self.imginfo:
-            ed.write(imginfo)
+            ed.write(bytearray(imginfo))
         ed.write(int.to_bytes(self.siu_status, 4, 'little'))
         ed.write(int.to_bytes(self.seccfg_status, 4, 'little'))
         ed.write(int.to_bytes(seccfg_attr_new, 4, 'little'))
         ed.write(self.seccfg_ext)
-        data = ed.getbuffer()
+        indata = ed.getbuffer()
         if self.hwtype == "SW":
-            data = self.hwc.sej.sej_sec_cfg_sw(data, True)
+            indata = self.hwc.sej.sej_sec_cfg_sw(indata, encrypt=True)
         elif self.hwtype == "V2":
-            data = self.hwc.sej.sej_sec_cfg_hw(data, True)
+            indata = self.hwc.sej.sej_sec_cfg_hw(indata, encrypt=True)
         elif self.hwtype == "V3":
-            data = self.hwc.sej.sej_sec_cfg_hw_V3(data, True)
+            indata = self.hwc.sej.sej_sec_cfg_hw_V3(indata, encrypt=True)
+        elif self.hwtype == "V4":
+            indata = self.hwc.sej.sej_sec_cfg_hw_V3(indata, encrypt=True, legacy=True)
         else:
             return False, "Unknown error"
-        wf.write(data)
+        wf.write(indata)
         wf.write(int.to_bytes(self.endflag, 4, 'little'))
 
-        data = bytearray(wf.getbuffer())
-        while len(data) % 0x200 != 0:
-            data += b"\x00"
-        return True, bytearray(data)
+        indata = bytearray(wf.getbuffer())
+        while len(indata) % 0x200 != 0:
+            indata += b"\x00"
+        return True, bytearray(indata)
 
 
 if __name__ == "__main__":
     with open("seccfg.bin", "rb") as rf:
         data = rf.read()
-    from hwcrypto import hwcrypto, crypto_setup
+    from hwcrypto import HwCrypto, CryptoSetup
 
-    setup = crypto_setup()
-    hwc = hwcrypto(setup)
+    setup = CryptoSetup()
+    hwc = HwCrypto(setup)
 
-    class mtk:
-        config = Mtk_Config()
+
+    class MTK:
+        config = MtkConfig()
         sej_base = None
 
-    v3 = seccfgV3(hwc, mtk)
-    v3.parse(data)
-    ret, newdata = v3.create("lock")
+
+    v4 = SecCfgV4(hwc, MTK)
+    v4.parse(data)
+    ret, newdata = v4.create("lock")
     print(newdata.hex())

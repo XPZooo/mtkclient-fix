@@ -1,17 +1,18 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
-# (c) B.Kerler 2018-2023 GPLv3 License
+# (c) B.Kerler 2018-2024 GPLv3 License
 import logging
 
 from mtkclient.Library.utils import LogBase, logsetup
-from mtkclient.Library.gpt import gpt
-from mtkclient.Library.pmt import pmt
+from mtkclient.Library.gpt import GPT
+from mtkclient.Library.pmt import PMT
 
 
 class Partition(metaclass=LogBase):
     def __init__(self, mtk, readflash, read_pmt, loglevel=logging.INFO):
         self.mtk = mtk
-        self.__logger = logsetup(self, self.__logger, loglevel, mtk.config.gui)
+        self.__logger, self.info, self.debug, self.warning, self.error = logsetup(self, self.__logger, 
+                                                                                  loglevel, mtk.config.gui)
         self.config = self.mtk.config
         self.readflash = readflash
         self.read_pmt = read_pmt
@@ -29,7 +30,7 @@ class Partition(metaclass=LogBase):
         return b""
 
     def get_pmt(self, backup: bool = False, parttype: str = "user") -> tuple:
-        pt = pmt()
+        pt = PMT()
         blocksize = self.mtk.daloader.daconfig.pagesize
         if not backup:
             addr = self.mtk.daloader.daconfig.flashsize - (2 * blocksize)
@@ -41,11 +42,11 @@ class Partition(metaclass=LogBase):
             partdata = data[8:]
             partitions = []
             for partpos in range(128):
-                partinfo = pt.pt_resident(partdata[partpos * 96:(partpos * 96) + 96])
+                partinfo = pt.PtResident(partdata[partpos * 96:(partpos * 96) + 96])
                 if partinfo[:4] == b"\x00\x00\x00\x00":
                     break
 
-                class partf:
+                class Partf:
                     unique = b""
                     first_lba = 0
                     last_lba = 0
@@ -55,7 +56,7 @@ class Partition(metaclass=LogBase):
                     type = b""
                     name = ""
 
-                pm = partf()
+                pm = Partf()
                 pm.name = partinfo.name.rstrip(b"\x00").decode('utf-8')
                 pm.sector = partinfo.offset // self.config.pagesize
                 pm.sectors = partinfo.size // self.config.pagesize
@@ -67,8 +68,10 @@ class Partition(metaclass=LogBase):
 
     def get_gpt(self, gpt_settings, parttype: str = "user") -> tuple:
         data = self.readflash(addr=0, length=2 * self.config.pagesize, filename="", parttype=parttype, display=False)
+        if not data:
+            return None, None
         if data[:4] == b"BPI\x00":
-            guid_gpt = gpt(
+            guid_gpt = GPT(
                 num_part_entries=gpt_settings.gpt_num_part_entries,
                 part_entry_size=gpt_settings.gpt_part_entry_size,
                 part_entry_start_lba=gpt_settings.gpt_part_entry_start_lba,
@@ -93,7 +96,7 @@ class Partition(metaclass=LogBase):
                 return partdata, partentries
         if data == b"":
             return None, None
-        guid_gpt = gpt(
+        guid_gpt = GPT(
             num_part_entries=gpt_settings.gpt_num_part_entries,
             part_entry_size=gpt_settings.gpt_part_entry_size,
             part_entry_start_lba=gpt_settings.gpt_part_entry_start_lba,
@@ -120,7 +123,7 @@ class Partition(metaclass=LogBase):
         data = self.readflash(addr=0, length=2 * self.config.pagesize, filename="", parttype=parttype, display=False)
         if data == b"":
             return data
-        guid_gpt = gpt(
+        guid_gpt = GPT(
             num_part_entries=gpt_num_part_entries,
             part_entry_size=gpt_part_entry_size,
             part_entry_start_lba=gpt_part_entry_start_lba,

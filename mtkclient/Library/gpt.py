@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
-# (c) B.Kerler 2018-2023
+# (c) B.Kerler 2018-2024
 import argparse
 import os
 import sys
@@ -11,12 +11,12 @@ from struct import unpack
 from binascii import hexlify
 
 try:
-    from mtkclient.Library.utils import LogBase, structhelper
+    from mtkclient.Library.utils import LogBase, Structhelper, logsetup
 except Exception:
-    from utils import LogBase, structhelper
+    from utils import LogBase, Structhelper
 
 
-class gpt_settings:
+class GptSettings:
     gpt_num_part_entries = 0
     gpt_part_entry_size = 0
     gpt_part_entry_start_lba = 0
@@ -27,10 +27,10 @@ class gpt_settings:
         self.gpt_part_entry_start_lba = int(gpt_part_entry_start_lba)
 
 
-class gpt(metaclass=LogBase):
-    class gpt_header:
-        def __init__(self, data):
-            sh = structhelper(data)
+class GPT(metaclass=LogBase):
+    class GptHeader:
+        def __init__(self, indata):
+            sh = Structhelper(indata)
             self.signature = sh.bytes(8)
             self.revision = sh.dword()
             self.header_size = sh.dword()
@@ -45,9 +45,9 @@ class gpt(metaclass=LogBase):
             self.num_part_entries = sh.dword()
             self.part_entry_size = sh.dword()
 
-    class gpt_partition:
-        def __init__(self, data):
-            sh = structhelper(data)
+    class GptPartition:
+        def __init__(self, indata):
+            sh = Structhelper(indata)
             self.type = sh.bytes(16)
             self.unique = sh.bytes(16)
             self.first_lba = sh.qword()
@@ -55,7 +55,7 @@ class gpt(metaclass=LogBase):
             self.flags = sh.qword()
             self.name = sh.string(72)
 
-    class efi_type(Enum):
+    class EfiType(Enum):
         EFI_UNUSED = 0x00000000
         EFI_MBR = 0x024DEE41
         EFI_SYSTEM = 0xC12A7328
@@ -145,7 +145,8 @@ class gpt(metaclass=LogBase):
     def __init__(self, num_part_entries=0, part_entry_size=0, part_entry_start_lba=0, loglevel=logging.INFO, *args,
                  **kwargs):
         self.num_part_entries = num_part_entries
-        self.__logger = self.__logger
+        self.__logger, self.info, self.debug, self.warning, self.error = logsetup(self, self.__logger,
+                                                                                  loglevel, None)
         self.part_entry_size = part_entry_size
         self.part_entry_start_lba = part_entry_start_lba
         self.totalsectors = None
@@ -153,18 +154,17 @@ class gpt(metaclass=LogBase):
         self.sectorsize = None
         self.partentries = []
 
-        self.error = self.__logger.error
         self.__logger.setLevel(loglevel)
         if loglevel == logging.DEBUG:
             logfilename = "log.txt"
             fh = logging.FileHandler(logfilename, encoding='utf-8')
             self.__logger.addHandler(fh)
 
-    def parseheader(self, gptdata, sectorsize=512):
-        return self.gpt_header(gptdata[sectorsize:sectorsize + 0x5C])
+    def parseheader(self, gptdata, sector_size=512):
+        return self.GptHeader(gptdata[sector_size:sector_size + 0x5C])
 
     def parse_bpi(self, gptdata, pagesize=0x200):
-        class partf:
+        class Partf:
             unique = b""
             first_lba = 0
             last_lba = 0
@@ -179,33 +179,33 @@ class gpt(metaclass=LogBase):
         self.totalsectors = 0
         self.partentries = []
         for pos in range(0x800, len(gptdata), 0x80):
-            data = gptdata[pos:pos + 0x80]
-            if int(hexlify(data[16:32]), 16) == 0:
+            rdata = gptdata[pos:pos + 0x80]
+            if int(hexlify(rdata[16:32]), 16) == 0:
                 break
 
-            rf = BytesIO(bytearray(data))
-            pf = partf()
-            rf.read(16)
-            guid1 = int.from_bytes(rf.read(4), 'little')
-            guid2 = int.from_bytes(rf.read(2), 'little')
-            guid3 = int.from_bytes(rf.read(2), 'little')
-            guid4 = int.from_bytes(rf.read(2), 'little')
-            guid5 = bytearray(rf.read(6)).hex()
+            rrf = BytesIO(bytearray(rdata))
+            pf = Partf()
+            rrf.read(16)
+            guid1 = int.from_bytes(rrf.read(4), 'little')
+            guid2 = int.from_bytes(rrf.read(2), 'little')
+            guid3 = int.from_bytes(rrf.read(2), 'little')
+            guid4 = int.from_bytes(rrf.read(2), 'little')
+            guid5 = bytearray(rrf.read(6)).hex()
             pf.unique = "{:08x}-{:04x}-{:04x}-{:04x}-{}".format(guid1, guid2, guid3, guid4, guid5)
-            pf.first_lba = int.from_bytes(rf.read(8), 'little')
-            pf.last_lba = int.from_bytes(rf.read(8), 'little')
+            pf.first_lba = int.from_bytes(rrf.read(8), 'little')
+            pf.last_lba = int.from_bytes(rrf.read(8), 'little')
             pf.sector = pf.first_lba
             pf.sectors = pf.last_lba - pf.first_lba + 1
-            pf.flags = int.from_bytes(rf.read(8), 'little')
-            pf.name = rf.read(0x48).replace(b"\x00\x00", b"").decode("utf-16")
+            pf.flags = int.from_bytes(rrf.read(8), 'little')
+            pf.name = rrf.read(0x48).replace(b"\x00\x00", b"").decode("utf-16")
             pf.type = 0
             if pf.last_lba > self.totalsectors:
                 self.totalsectors = pf.last_lba
             self.partentries.append(pf)
 
-    def parse(self, gptdata, sectorsize=512):
-        self.header = self.gpt_header(gptdata[sectorsize:sectorsize + 0x5C])
-        self.sectorsize = sectorsize
+    def parse(self, gptdata, sector_size=512):
+        self.header = self.GptHeader(gptdata[sector_size:sector_size + 0x5C])
+        self.sectorsize = sector_size
         if self.header.signature != b"EFI PART":
             if gptdata[0:4] == b"BPI\x00":
                 self.parse_bpi(gptdata)
@@ -215,14 +215,14 @@ class gpt(metaclass=LogBase):
             self.error("Unknown GPT revision.")
             return False
         if self.part_entry_start_lba != 0:
-            start = self.part_entry_start_lba
+            _start = self.part_entry_start_lba
         else:
-            start = self.header.part_entry_start_lba * sectorsize
+            _start = self.header.part_entry_start_lba * sector_size
 
         entrysize = self.header.part_entry_size
         self.partentries = []
 
-        class partf:
+        class Partf:
             unique = b""
             first_lba = 0
             last_lba = 0
@@ -235,11 +235,11 @@ class gpt(metaclass=LogBase):
         num_part_entries = self.header.num_part_entries
 
         for idx in range(0, num_part_entries):
-            data = gptdata[start + (idx * entrysize):start + (idx * entrysize) + entrysize]
-            if int(hexlify(data[16:32]), 16) == 0:
+            indata = gptdata[_start + (idx * entrysize):_start + (idx * entrysize) + entrysize]
+            if int(hexlify(indata[16:32]), 16) == 0:
                 break
-            partentry = self.gpt_partition(data)
-            pa = partf()
+            partentry = self.GptPartition(indata)
+            pa = Partf()
             guid1 = unpack("<I", partentry.unique[0:0x4])[0]
             guid2 = unpack("<H", partentry.unique[0x4:0x6])[0]
             guid3 = unpack("<H", partentry.unique[0x6:0x8])[0]
@@ -249,11 +249,11 @@ class gpt(metaclass=LogBase):
             pa.sector = partentry.first_lba
             pa.sectors = partentry.last_lba - partentry.first_lba + 1
             pa.flags = partentry.flags
-            type = int(unpack("<I", partentry.type[0:0x4])[0])
+            ptype = int(unpack("<I", partentry.type[0:0x4])[0])
             try:
-                pa.type = self.efi_type(type).name
+                pa.type = self.EfiType(ptype).name
             except Exception:
-                pa.type = hex(type)
+                pa.type = hex(ptype)
             pa.name = partentry.name.replace(b"\x00\x00", b"").decode('utf-16')
             if pa.type == "EFI_UNUSED":
                 continue
@@ -266,78 +266,78 @@ class gpt(metaclass=LogBase):
 
     def tostring(self):
         mstr = "\nGPT Table:\n-------------\n"
-        for partition in self.partentries:
-            mstr += ("{:20} Offset 0x{:016x}, Length 0x{:016x}, Flags 0x{:08x}, UUID {}, Type {}\n".format(
-                partition.name + ":", partition.sector * self.sectorsize, partition.sectors * self.sectorsize,
-                partition.flags, partition.unique, partition.type))
+        for _partition in self.partentries:
+            mstr += ("{:20} Offset 0x{:016x}, Length 0x{:016x}\n                     Flags 0x{:08x}, UUID {}, Type {}\n".format(
+                _partition.name + ":", _partition.sector * self.sectorsize, _partition.sectors * self.sectorsize,
+                _partition.flags, _partition.unique, _partition.type))
         mstr += ("\nTotal disk size:0x{:016x}, sectors:0x{:016x}\n".format(self.totalsectors * self.sectorsize,
                                                                            self.totalsectors))
         return mstr
 
-    def generate_rawprogram(self, lun, sectorsize, directory):
+    def generate_rawprogram(self, lun, sector_size, directory):
         fname = "rawprogram" + str(lun) + ".xml"
-        with open(os.path.join(directory, fname), "wb") as wf:
+        with open(os.path.join(directory, fname), "wb") as wwf:
             mstr = "<?xml version=\"1.0\" ?>\n<data>\n"
             partofsingleimage = "false"
             readbackverify = "false"
             sparse = "false"
-            for partition in self.partentries:
-                filename = partition.name + ".bin"
-                mstr += f"\t<program SECTOR_SIZE_IN_BYTES=\"{sectorsize}\" " + \
+            for _partition in self.partentries:
+                _filename = _partition.name + ".bin"
+                mstr += f"\t<program SECTOR_SIZE_IN_BYTES=\"{sector_size}\" " + \
                         f"file_sector_offset=\"0\" " \
-                        f"filename=\"{filename}\" " + \
-                        f"label=\"{partition.name}\" " \
-                        f"num_partition_sectors=\"{partition.sectors}\" " + \
+                        f"_filename=\"{_filename}\" " + \
+                        f"label=\"{_partition.name}\" " \
+                        f"num_partition_sectors=\"{_partition.sectors}\" " + \
                         f"partofsingleimage=\"{partofsingleimage}\" " \
                         f"physical_partition_number=\"{str(lun)}\" " + \
                         f"readbackverify=\"{readbackverify}\" " \
-                        f"size_in_KB=\"{(partition.sectors * sectorsize / 1024):.1f}\" " \
+                        f"size_in_KB=\"{(_partition.sectors * sector_size / 1024):.1f}\" " \
                         f"sparse=\"{sparse}\" " + \
-                        f"start_byte_hex=\"{hex(partition.sector * sectorsize)}\" " \
-                        f"start_sector=\"{partition.sector}\"/>\n"
+                        f"start_byte_hex=\"{hex(_partition.sector * sector_size)}\" " \
+                        f"start_sector=\"{_partition.sector}\"/>\n"
             partofsingleimage = "true"
             sectors = self.header.first_usable_lba
-            mstr += f"\t<program SECTOR_SIZE_IN_BYTES=\"{sectorsize}\" " + \
+            mstr += f"\t<program SECTOR_SIZE_IN_BYTES=\"{sector_size}\" " + \
                     "file_sector_offset=\"0\" " + \
-                    f"filename=\"gpt_lun{str(lun)}.bin\" " + \
+                    f"_filename=\"gpt_lun{str(lun)}.bin\" " + \
                     "label=\"PrimaryGPT\" " + \
                     f"num_partition_sectors=\"{sectors}\" " + \
                     f"partofsingleimage=\"{partofsingleimage}\" " + \
                     f"physical_partition_number=\"{str(lun)}\" " + \
                     f"readbackverify=\"{readbackverify}\" " + \
-                    f"size_in_KB=\"{(sectors * sectorsize / 1024):.1f}\" " + \
+                    f"size_in_KB=\"{(sectors * sector_size / 1024):.1f}\" " + \
                     f"sparse=\"{sparse}\" " + \
                     "start_byte_hex=\"0x0\" " + \
                     "start_sector=\"0\"/>\n"
             sectors = self.header.first_usable_lba - 1
-            mstr += f"\t<program SECTOR_SIZE_IN_BYTES=\"{sectorsize}\" " + \
+            mstr += f"\t<program SECTOR_SIZE_IN_BYTES=\"{sector_size}\" " + \
                     "file_sector_offset=\"0\" " + \
-                    f"filename=\"gpt_backup{str(lun)}.bin\" " + \
+                    f"_filename=\"gpt_backup{str(lun)}.bin\" " + \
                     "label=\"BackupGPT\" " + \
                     f"num_partition_sectors=\"{sectors}\" " + \
                     f"partofsingleimage=\"{partofsingleimage}\" " + \
                     f"physical_partition_number=\"{str(lun)}\" " + \
                     f"readbackverify=\"{readbackverify}\" " + \
-                    f"size_in_KB=\"{(sectors * sectorsize / 1024):.1f}\" " + \
+                    f"size_in_KB=\"{(sectors * sector_size / 1024):.1f}\" " + \
                     f"sparse=\"{sparse}\" " + \
-                    f"start_byte_hex=\"({sectorsize}*NUM_DISK_SECTORS)-{sectorsize * sectors}.\" " + \
+                    f"start_byte_hex=\"({sector_size}*NUM_DISK_SECTORS)-{sector_size * sectors}.\" " + \
                     f"start_sector=\"NUM_DISK_SECTORS-{sectors}.\"/>\n"
             mstr += "</data>"
-            wf.write(bytes(mstr, 'utf-8'))
-            print(f"Wrote partition xml as {fname}")
+            wwf.write(bytes(mstr, 'utf-8'))
+            print(f"Wrote _partition xml as {fname}")
 
-    def print_gptfile(self, filename):
+    def print_gptfile(self, gptfilename):
         try:
-            with open(filename, "rb") as rf:
-                size = min(32 * 4096, os.stat(filename).st_size)
-                data = rf.read(size)
-                for sectorsize in [512, 4096]:
-                    result = self.parse(data, sectorsize)
-                    if result:
+            with open(gptfilename, "rb") as rrf:
+                _sz = min(32 * 4096, os.stat(gptfilename).st_size)
+                _data = rrf.read(_sz)
+                for sector_size in [512, 4096]:
+                    res = self.parse(_data, sector_size)
+                    if res:
                         break
-                if result:
+                if res:
                     print(self.tostring())
-                return result
+                return res
         except Exception as e:
             self.error(str(e))
         return ""
@@ -365,7 +365,7 @@ if __name__ == "__main__":
     if args.command not in ["print", "extract", "test"]:
         parser.error("Command is mandatory")
 
-    gp = gpt()
+    gp = GPT()
     if args.command == "print":
         if not os.path.exists(args.image):
             print(f"File {args.image} does not exist. Aborting.")

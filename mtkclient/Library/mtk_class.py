@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-# MTK Flash Client (c) B.Kerler 2018-2023.
+# MTK Flash Client (c) B.Kerler 2018-2024.
 # Licensed under GPLv3 License
 import os
 import logging
 from struct import unpack
 from mtkclient.config.usb_ids import default_ids
-from mtkclient.config.payloads import pathconfig
+from mtkclient.config.payloads import PathConfig
 from mtkclient.Library.pltools import PLTools
 from mtkclient.Library.mtk_preloader import Preloader
 from mtkclient.Library.DA.mtk_daloader import DAloader
@@ -28,8 +28,9 @@ class Mtk(metaclass=LogBase):
         self.vid = config.vid
         self.pid = config.pid
         self.interface = config.interface
-        self.pathconfig = pathconfig()
-        self.__logger = logsetup(self, self.__logger, loglevel, config.gui)
+        self.pathconfig = PathConfig()
+        self.__logger, self.info, self.debug, self.warning, self.error = logsetup(self, self.__logger, loglevel,
+                                                                                  config.gui)
         self.eh = ErrorHandler()
         self.serialportname = serialportname
         if preinit:
@@ -205,7 +206,7 @@ class Mtk(metaclass=LogBase):
             if mtk.serialportname:
                 mtk.port.serial_handshake()
             else:
-                mtk.port.handshake()
+                mtk.port.run_handshake()
             return mtk
         else:
             self.error("Error on running kamakiri payload")

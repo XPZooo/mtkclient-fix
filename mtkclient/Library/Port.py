@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
-# (c) B.Kerler 2018-2023 GPLv3 License
+# (c) B.Kerler 2018-2024 GPLv3 License
 import os
 import sys
 import logging
@@ -8,12 +8,12 @@ import time
 from binascii import hexlify
 from struct import pack
 from mtkclient.Library.utils import LogBase, logsetup
-from mtkclient.Library.Connection.usblib import usb_class
-from mtkclient.Library.Connection.seriallib import serial_class
+from mtkclient.Library.Connection.usblib import UsbClass
+from mtkclient.Library.Connection.seriallib import SerialClass
 
 
 class Port(metaclass=LogBase):
-    class deviceclass:
+    class DeviceClass:
         vid = 0
         pid = 0
 
@@ -22,15 +22,16 @@ class Port(metaclass=LogBase):
             self.pid = pid
 
     def __init__(self, mtk, portconfig, serialportname: str = None, loglevel=logging.INFO):
-        self.__logger = logsetup(self, self.__logger, loglevel, mtk.config.gui)
+        self.__logger, self.info, self.debug, self.warning, self.error = logsetup(self, self.__logger, 
+                                                                                  loglevel, mtk.config.gui)
         self.config = mtk.config
         self.mtk = mtk
         self.serialportname = None
         if serialportname is not None:
-            self.cdc = serial_class(portconfig=portconfig, loglevel=loglevel, devclass=10)
+            self.cdc = SerialClass(portconfig=portconfig, loglevel=loglevel, devclass=10)
             self.cdc.setportname(serialportname)
         else:
-            self.cdc = usb_class(portconfig=portconfig, loglevel=loglevel, devclass=10)
+            self.cdc = UsbClass(portconfig=portconfig, loglevel=loglevel, devclass=10)
         self.usbread = self.cdc.usbread
         self.usbwrite = self.cdc.usbwrite
         self.close = self.cdc.close
@@ -49,30 +50,29 @@ class Port(metaclass=LogBase):
             self.__logger.setLevel(logging.INFO)
 
     def run_serial_handshake(self):
-        EP_OUT = None
-        try:  # Support for serial port where EP_OUT is unknown
-            if hasattr(self.cdc, 'EP_OUT'):
-                EP_OUT = self.cdc.EP_OUT.write
-                # maxinsize = self.cdc.EP_IN.wMaxPacketSize
+        try:  # Support for serial port where ep_out is unknown
+            if hasattr(self.cdc, 'ep_out'):
+                ep_out = self.cdc.EP_OUT.write
+                # maxinsize = self.cdc.ep_in.wMaxPacketSize
             else:
-                EP_OUT = self.cdc.write
+                ep_out = self.cdc.write
         except Exception:
-            EP_OUT = self.cdc.write
+            ep_out = self.cdc.write
         try:
-            if hasattr(self.cdc, 'EP_IN'):
-                EP_IN = self.cdc.EP_IN.read
+            if hasattr(self.cdc, 'ep_in'):
+                ep_in = self.cdc.EP_IN.read
             else:
-                EP_IN = self.cdc.read
+                ep_in = self.cdc.read
         except Exception:
-            EP_IN = self.cdc.read
+            ep_in = self.cdc.read
 
         i = 0
         startcmd = b"\xa0\x0a\x50\x05"
         length = len(startcmd)
         try:
             while i < length:
-                if EP_OUT(int.to_bytes(startcmd[i], 1, 'little')):
-                    v = EP_IN(1, timeout=20)  # Do not wait 1 sec, bootloader is only active for 0.3 sec.
+                if ep_out(int.to_bytes(startcmd[i], 1, 'little')):
+                    v = ep_in(1, timeout=20)  # Do not wait 1 sec, bootloader is only active for 0.3 sec.
                     if len(v) == 1 and v[0] == ~(startcmd[i]) & 0xFF:
                         i += 1
                     else:
@@ -90,6 +90,8 @@ class Port(metaclass=LogBase):
             self.cdc.connected = self.cdc.connect()
         while 1:  # Workaround for serial port
             try:
+                if not self.cdc.connected:
+                    self.cdc.connected = self.cdc.connect()
                 if maxtries is not None and counter == maxtries:
                     break
                 counter += 1
@@ -124,18 +126,20 @@ class Port(metaclass=LogBase):
         return False
 
     def run_handshake(self):
-        EP_OUT = self.cdc.EP_OUT.write
-        EP_IN = self.cdc.EP_IN.read
+        ep_out = self.cdc.EP_OUT.write
+        ep_in = self.cdc.EP_IN.read
         maxinsize = self.cdc.EP_IN.wMaxPacketSize
 
         i = 0
         startcmd = b"\xa0\x0a\x50\x05"
         length = len(startcmd)
+        # On preloader, send 0xa0 first
+        if self.cdc.pid!=0x3:
+            ep_out(startcmd[0:1])
         try:
             while i < length:
-                if EP_OUT(int.to_bytes(startcmd[i], 1, 'little')):
-                    v = EP_IN(maxinsize)
-                    if len(v) == 1 and v[0] == ~(startcmd[i]) & 0xFF:
+                if ep_out(startcmd[i:i+1]):
+                    if ep_in(maxinsize)[-1] == ~(startcmd[i]) & 0xFF:
                         i += 1
                     else:
                         i = 0
@@ -154,8 +158,7 @@ class Port(metaclass=LogBase):
                 if maxtries is not None and counter == maxtries:
                     break
                 counter += 1
-                self.cdc.connected = self.cdc.connect()
-                if self.cdc.connected and self.run_handshake():
+                if self.cdc.connect() and self.run_handshake():
                     return True
                 else:
                     if loop == 5:

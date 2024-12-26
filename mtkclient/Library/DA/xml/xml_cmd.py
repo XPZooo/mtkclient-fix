@@ -30,15 +30,21 @@ class XMLCmd(metaclass=LogBase):
 
     def cmd_notify_init_hw(self):
         """
-        <?xml version="1.0" encoding="utf-8"?><da><version>1.0</version><command>CMD:NOTIFY-INIT-HW</command><arg></arg></da>
+        <?xml version="1.0" encoding="utf-8"?>
+        <da>
+        <version>1.0</version>
+        <command>CMD:NOTIFY-INIT-HW</command>
+        <arg></arg>
+        </da>
         """
         cmd = self.create_cmd("NOTIFY-INIT-HW")
         return cmd
 
-    def cmd_security_set_flash_policy(self,host_offset: int = 0x8000000,
-                    length: int = 0x100000):
+    def cmd_security_set_flash_policy(self, host_offset: int = 0x8000000,
+                                      length: int = 0x100000):
         """
-        <?xml version="1.0" encoding="utf-8"?><da><version>1.0</version><command>CMD:SECURITY-SET-FLASH-POLICY</command><arg>
+        <?xml version="1.0" encoding="utf-8"?><da><version>1.0</version>
+        <command>CMD:SECURITY-SET-FLASH-POLICY</command><arg>
         <source_file>MEM://0x8000000:0x100000</source_file></arg></da>
         """
         content = {
@@ -219,7 +225,8 @@ class XMLCmd(metaclass=LogBase):
 
     def cmd_can_higher_usb_speed(self, host_mem_offset: int = 0x7fe8463ed240, length: int = 0x40):
         """
-        <?xml version="1.0" encoding="utf-8"?><da><version>1.0</version><command>CMD:CAN-HIGHER-USB-SPEED</command><arg><target_file>MEM://0x7fe8463ed240:0x40</target_file></arg></da>
+        <?xml version="1.0" encoding="utf-8"?><da><version>1.0</version>
+        <command>CMD:CAN-HIGHER-USB-SPEED</command><arg><target_file>MEM://0x7fe8463ed240:0x40</target_file></arg></da>
         """
         content = {
             "arg": [
@@ -238,7 +245,9 @@ class XMLCmd(metaclass=LogBase):
         cmd = self.create_cmd("WRITE-EFUSE", content)
         # resp =
         """
-        <?xml version=\"1.0\" encoding=\"utf-8\"?><host><version>1.0</version><command>CMD:DOWNLOAD-FILE</command><a"rg><checksum>%s</checksum><info>%s</info><source_file>%s</source_file><packet_length>0x%x</packet_length></arg></host>
+        <?xml version=\"1.0\" encoding=\"utf-8\"?><host><version>1.0</version>
+        <command>CMD:DOWNLOAD-FILE</command><a"rg><checksum>%s</checksum>
+        <info>%s</info><source_file>%s</source_file><packet_length>0x%x</packet_length></arg></host>
         """
         return cmd
 
@@ -251,8 +260,38 @@ class XMLCmd(metaclass=LogBase):
         cmd = self.create_cmd("READ-EFUSE", content)
         # resp =
         """
-        <?xml version=\"1.0\" encoding=\"utf-8\"?><host><version>1.0</version><command>CMD:UPLOAD-FILE</command><arg><"checksum>CHK_NO</checksum><info>%s</info><target_file>%s</target_file><packet_length>0x%x</packet_length></arg></host>
+        <?xml version=\"1.0\" encoding=\"utf-8\"?><host><version>1.0</version>
+        <command>CMD:UPLOAD-FILE</command><arg><"checksum>CHK_NO</checksum><info>%s</info>
+        <target_file>%s</target_file><packet_length>0x%x</packet_length></arg></host>
         OK@0x%x (length)
+        """
+        return cmd
+
+    def cmd_get_dev_info(self, host_mem_offset=0x8000000, length=0x100000):
+        """
+        <?xml version="1.0" encoding="utf-8"?>
+        <da>
+            <version>1.0</version>
+            <command>CMD:SECURITY-GET-DEV-FW-INFO</command>
+            <arg>
+                <target_file>MEM://0x8000000:0x100000</target_file>
+            </arg>
+        </da>
+        """
+        content = {
+            "arg": [
+                f"<target_file>MEM://{hex(host_mem_offset)}:{hex(length)}</target_file>"
+            ]
+        }
+        cmd = self.create_cmd("SECURITY-GET-DEV-FW-INFO", content)
+        """
+        resp:
+        <?xml version="1.0" encoding="utf-8"?>
+        <sla version="1.0">
+                <rnd>xxxx</rnd>
+                <hrid>xxxx</hrid>
+                <socid>xxxx</socid>
+        </sla>'
         """
         return cmd
 
@@ -509,8 +548,11 @@ class XMLCmd(metaclass=LogBase):
         cmd = self.create_cmd("GET-DA-INFO", content)
         # resp =
         """
-        <?xml version=\"1.0\" encoding=\"utf-8\"?><host><version>1.0</version><command>CMD:UPLOAD-FILE</command><arg><checksum>CHK_NO</checksum><info>WriteLocalFile</info><target_file>%s</target_file><packet_length>0x%x</packet_length></arg></host>
-        <?xml version=\"1.0\" encoding=\"utf-8\"?><da_info><version>1.0</version><da_version>2021</da_version><build>May 24 2022:19:03:56</build></da_info>"
+        <?xml version=\"1.0\" encoding=\"utf-8\"?><host><version>1.0</version>
+        <command>CMD:UPLOAD-FILE</command><arg><checksum>CHK_NO</checksum><info>WriteLocalFile</info>
+        <target_file>%s</target_file><packet_length>0x%x</packet_length></arg></host>
+        <?xml version=\"1.0\" encoding=\"utf-8\"?><da_info><version>1.0</version>
+        <da_version>2021</da_version><build>May 24 2022:19:03:56</build></da_info>"
         OK
         OK@0x%x
         """
@@ -539,11 +581,13 @@ class XMLCmd(metaclass=LogBase):
 
     def cmd_set_host_info(self, hostinfo: str = ""):
         """
-        <?xml version="1.0" encoding="utf-8"?><da><version>1.0</version><command>CMD:SET-HOST-INFO</command><arg><info>20230901T234721</info></arg></da>
+        <?xml version="1.0" encoding="utf-8"?><da><version>1.0</version>
+        <command>CMD:SET-HOST-INFO</command>
+        <arg><info>20230901T234721</info></arg>
         """
         if hostinfo == "":
-            currentDateAndTime = datetime.datetime.now()
-            hostinfo = currentDateAndTime.strftime("%Y%m%dT%H%M%S")
+            current_date_and_time = datetime.datetime.now()
+            hostinfo = current_date_and_time.strftime("%Y%m%dT%H%M%S")
         content = {
             "arg": [
                 f"<info>{hostinfo}</info>",

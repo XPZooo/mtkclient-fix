@@ -3,8 +3,8 @@ import sys
 import logging
 from binascii import hexlify
 from mtkclient.Library.utils import LogBase
-from mtkclient.Library.settings import hwparam
-from mtkclient.config.brom_config import chipconfig, damodes, hwconfig
+from mtkclient.Library.settings import HwParam
+from mtkclient.config.brom_config import Chipconfig, DAmodes, hwconfig
 
 try:
     from PySide6.QtCore import QObject
@@ -15,10 +15,11 @@ except ImportError:
     pass
 
 
-class Mtk_Config(metaclass=LogBase):
+class MtkConfig(metaclass=LogBase):
     def __init__(self, loglevel=logging.INFO, gui=None, guiprogress=None, update_status_text=None):
         self.peek = None
         self.gui = gui
+        self.loglevel = loglevel
         self.guiprogress = guiprogress
         self.update_status_text = update_status_text
         self.pid = -1
@@ -40,10 +41,7 @@ class Mtk_Config(metaclass=LogBase):
         self.iot = False
         self.gpt_file = None
         self.tr = QObject().tr
-        if sys.platform.startswith('darwin'):
-            self.ptype = "kamakiri"
-        else:
-            self.ptype = "kamakiri2"
+        self.ptype = "kamakiri2"
         self.generatekeys = None
         self.daconfig = None
         self.bmtflag = None
@@ -64,13 +62,14 @@ class Mtk_Config(metaclass=LogBase):
         self.meid = None
         self.socid = None
         self.target_config = None
-        self.chipconfig = chipconfig()
+        self.chipconfig = Chipconfig()
         self.gpt_settings = None
         self.hwparam = None
-        self.hwparam_path = "logs"
+        self.hwparam_path = "."
         self.sram = None
         self.dram = None
         self.otp = None
+        self.stock = False
         if loglevel == logging.DEBUG:
             logfilename = os.path.join("logs", "log.txt")
             fh = logging.FileHandler(logfilename)
@@ -113,7 +112,6 @@ class Mtk_Config(metaclass=LogBase):
         self.hwparam.writesetting("hwcode", hex(hwcode))
 
     def set_meid(self, meid):
-        self.hwparam = hwparam(meid, self.hwparam_path)
         self.meid = meid
         self.hwparam.writesetting("meid", hexlify(meid).decode('utf-8'))
 
@@ -180,7 +178,7 @@ class Mtk_Config(metaclass=LogBase):
         if self.chipconfig.ap_dma_mem is None:
             self.chipconfig.ap_dma_mem = 0x11000000 + 0x1A0
         if self.chipconfig.damode is None:
-            self.chipconfig.damode = damodes.LEGACY
+            self.chipconfig.damode = DAmodes.LEGACY
         if self.chipconfig.dxcc_base is None:
             self.chipconfig.dxcc_base = None
         if self.chipconfig.meid_addr is None:
@@ -195,7 +193,7 @@ class Mtk_Config(metaclass=LogBase):
         if hwcode in hwconfig:
             self.chipconfig = hwconfig[hwcode]
         else:
-            self.chipconfig = chipconfig()
+            self.chipconfig = Chipconfig()
         self.default_values(hwcode)
 
     def get_watchdog_addr(self):

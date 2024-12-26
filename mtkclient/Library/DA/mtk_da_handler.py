@@ -1,3 +1,4 @@
+import json
 import os
 import time
 import sys
@@ -5,17 +6,22 @@ import logging
 from struct import pack, unpack
 from binascii import hexlify
 from mtkclient.Library.utils import LogBase, logsetup, getint
-from mtkclient.config.payloads import pathconfig
+from mtkclient.config.payloads import PathConfig
 from mtkclient.Library.error import ErrorHandler
-from mtkclient.Library.utils import progress
-from mtkclient.config.brom_config import efuse, damodes
+from mtkclient.Library.utils import Progress
+from mtkclient.config.brom_config import Efuse, DAmodes
 from mtkclient.Library.Filesystem.mtkdafs import MtkDaFS
-from fuse import FUSE
+
+try:
+    from fuse import FUSE
+except ImportError:
+    FUSE = None
 
 
-class DA_handler(metaclass=LogBase):
+class DaHandler(metaclass=LogBase):
     def __init__(self, mtk, loglevel=logging.INFO):
-        self.__logger = self.__logger
+        self.__logger, self.info, self.debug, self.warning, self.error = logsetup(self, self.__logger,
+                                                                                  loglevel, mtk.config.gui)
         self.info = self.__logger.info
         self.debug = self.__logger.debug
         self.error = self.__logger.error
@@ -25,8 +31,9 @@ class DA_handler(metaclass=LogBase):
         self.vid = mtk.config.vid
         self.pid = mtk.config.pid
         self.interface = mtk.config.interface
-        self.pathconfig = pathconfig()
-        self.__logger = logsetup(self, self.__logger, loglevel, mtk.config.gui)
+        self.pathconfig = PathConfig()
+        self.__logger, self.info, self.debug, self.warning, self.error = logsetup(self, self.__logger,
+                                                                                  loglevel, mtk.config.gui)
         self.eh = ErrorHandler()
         self.mtk = mtk
 
@@ -69,7 +76,8 @@ class DA_handler(metaclass=LogBase):
                                 with open(filename, "wb") as wf:
                                     wf.write(preloader)
                                     print(f"Successfully extracted preloader for this device to: {filename}")
-                            except Exception:
+                            except Exception as err:
+                                self.error(err)
                                 pass
                 return preloader
         except Exception as err:
@@ -83,7 +91,7 @@ class DA_handler(metaclass=LogBase):
         else:
             if mtk.serialportname is not None:
                 mtk.preloader.init()
-            if mtk.port.cdc.connected and os.path.exists(".state"):
+            if mtk.port.cdc.connected and os.path.exists(os.path.join(mtk.config.hwparam_path, ".state")):
                 mtk.daloader.reinit()
                 return mtk
         if mtk.config.target_config is None:
@@ -119,7 +127,12 @@ class DA_handler(metaclass=LogBase):
                                or self.mtk.config.target_config["sbc"])
                 if not hassecurity:
                     mtk.daloader.patch = True
-                mtk = mtk.bypass_security()  # Needed for dumping preloader
+
+                if not self.mtk.config.stock:
+                    mtk = mtk.bypass_security()  # Needed for dumping preloader
+                else:
+                    self.info("Using supplied preloader. Skipping exploitation!")
+
                 if mtk is not None:
                     self.mtk = mtk
                     if preloader is None:
@@ -152,6 +165,49 @@ class DA_handler(metaclass=LogBase):
             mtk.daloader.writestate()
             return mtk
 
+    def patch_vbmeta(self, vbmeta:bytes, vbmode:int):
+        vbmeta = bytearray(vbmeta)
+        DISABLE_VERITY = 1
+        DISABLE_VERIFICATION = 2
+        if vbmode == DISABLE_VERIFICATION:
+            self.info("Patching verification")
+        elif vbmode == DISABLE_VERITY:
+            self.info("Patching verity")
+        elif vbmode == DISABLE_VERIFICATION|DISABLE_VERITY:
+            self.info("Patching verification + verity")
+        elif vbmode == 0:
+            self.info("Enable verification + verity")
+        else:
+            self.error(f"Invalid mode: {vbmode}")
+            return None
+        vbmeta[0x78:0x78+4] = int.to_bytes(vbmode, 4, 'big')
+        return vbmeta
+
+    def da_vbmeta(self, vbmode:int=3):
+        gpttable = self.mtk.daloader.get_partition_data(parttype="user")
+        slot = self.get_current_slot()
+        partition="vbmeta"+slot
+        rpartition = None
+        for gptentry in gpttable:
+            if gptentry.name.lower() == partition.lower():
+                rpartition = gptentry
+                break
+        if rpartition is not None:
+            self.info(f'Dumping partition "{rpartition.name}"')
+            vbmeta=self.mtk.daloader.readflash(addr=rpartition.sector * self.config.pagesize,
+                                           length=rpartition.sectors * self.config.pagesize,
+                                           filename="", parttype="user")
+            if vbmeta!=b"":
+                self.info(f'Patching {partition}"')
+                patched_vbmeta = self.patch_vbmeta(vbmeta,vbmode)
+                self.info(f'Writing partition "{rpartition.name}"')
+                if self.mtk.daloader.writeflash(addr=rpartition.sector * self.config.pagesize,
+                                           length=rpartition.sectors * self.config.pagesize,
+                                           wdata=patched_vbmeta, parttype="user"):
+                    self.info("Successfully patched vbmeta :)")
+                else:
+                    self.error("Error on patching vbmeta :(")
+
     def da_gpt(self, directory: str):
         if directory is None:
             directory = ""
@@ -171,6 +227,36 @@ class DA_handler(metaclass=LogBase):
                 wf.write(data[self.mtk.daloader.daconfig.pagesize:])
             print(f"Dumped Backup GPT to {sfilename}")
 
+    def da_read_partition(self, partitionname, parttype="user"):
+        rpartition = None
+        gpttable = self.mtk.daloader.get_partition_data(parttype=parttype)
+        for gptentry in gpttable:
+            if gptentry.name.lower() == partitionname.lower():
+                rpartition = gptentry
+                break
+        if rpartition is not None:
+            self.info(f'Dumping partition "{rpartition.name}"')
+            data=self.mtk.daloader.readflash(addr=rpartition.sector * self.config.pagesize,
+                                           length=rpartition.sectors * self.config.pagesize,
+                                           filename="", parttype=parttype)
+            return data
+        return b""
+
+    def da_write_partition(self, partitionname, data:bytes=None, parttype="user"):
+        rpartition = None
+        gpttable = self.mtk.daloader.get_partition_data(parttype=parttype)
+        for gptentry in gpttable:
+            if gptentry.name.lower() == partitionname.lower():
+                rpartition = gptentry
+                break
+        if rpartition is not None:
+            self.info(f'Writing partition "{rpartition.name}"')
+            res=self.mtk.daloader.writeflash(addr=rpartition.sector * self.config.pagesize,
+                                           length=rpartition.sectors * self.config.pagesize,
+                                           filename="", parttype=parttype, wdata=data)
+            return res
+        return None
+
     def da_read(self, partitionname, parttype, filename):
         filenames = filename.split(",")
         partitions = partitionname.split(",")
@@ -179,7 +265,7 @@ class DA_handler(metaclass=LogBase):
             self.close()
         if parttype == "user" or parttype is None:
             i = 0
-            countDump = 0
+            count_dump = 0
             self.info("Requesting available partitions ....")
             gpttable = self.mtk.daloader.get_partition_data(parttype=parttype)
             for partition in partitions:
@@ -189,7 +275,7 @@ class DA_handler(metaclass=LogBase):
                     self.mtk.daloader.readflash(addr=0,
                                                 length=0x16000,
                                                 filename=partfilename, parttype=parttype)
-                    countDump += 1
+                    count_dump += 1
                     continue
                 else:
                     rpartition = None
@@ -204,18 +290,18 @@ class DA_handler(metaclass=LogBase):
                                                        filename=partfilename, parttype=parttype):
                             self.info(f"Dumped sector {str(rpartition.sector)} with sector count " +
                                       f"{str(rpartition.sectors)} as {partfilename}.")
-                            countDump += 1
+                            count_dump += 1
                         else:
                             self.info(f"Failed to dump sector {str(rpartition.sector)} with sector count " +
                                       f"{str(rpartition.sectors)} as {partfilename}.")
-                            countDump += 1
+                            count_dump += 1
                     else:
                         self.error(f"Error: Couldn't detect partition: {partition}\nAvailable partitions:")
                         for rpartition in gpttable:
                             self.info(rpartition.name)
-            if countDump > 1 and countDump == len(filenames):
+            if count_dump > 1 and count_dump == len(filenames):
                 self.info("All partitions were dumped")
-            elif countDump > 1 and countDump != len(filenames):
+            elif count_dump > 1 and count_dump != len(filenames):
                 self.info("Failed to dump some partitions")
         else:
             i = 0
@@ -249,7 +335,7 @@ class DA_handler(metaclass=LogBase):
             with open(sfilename, "wb") as wf:
                 wf.write(data[self.config.pagesize * 2:])
 
-            countGPT = 0
+            count_gpt = 0
             for partition in guid_gpt.partentries:
                 partitionname = partition.name
                 if partition.name in skip:
@@ -264,14 +350,14 @@ class DA_handler(metaclass=LogBase):
                                                filename=filename,
                                                parttype=parttype):
 
-                    countGPT += 1
+                    count_gpt += 1
                     self.info(f"Dumped partition {str(partition.name)} as {str(filename)}.")
                 else:
-                    countGPT -= 1
+                    count_gpt -= 1
                     self.error(f"Failed to dump partition {str(partition.name)} as {str(filename)}.")
 
-            partitionsForRead = len(guid_gpt.partentries) - len(skip)
-            if countGPT == partitionsForRead:
+            partitions_for_read = len(guid_gpt.partentries) - len(skip)
+            if count_gpt == partitions_for_read:
                 self.info("All Dumped partitions success.")
             else:
                 self.error("Failed to dump all partitions")
@@ -290,7 +376,7 @@ class DA_handler(metaclass=LogBase):
             length = self.mtk.daloader.daconfig.flashsize
         print(f"Dumping sector 0 with flash size {hex(length)} as {filename}.")
         sys.stdout.flush()
-        if self.mtk.daloader.readflash(addr=0, length=length, filename=filename, parttype=parttype) == b"ACK":
+        if self.mtk.daloader.readflash(addr=0, length=length, filename=filename, parttype=parttype):
             print(f"Dumped sector 0 with flash size {hex(length)} as {filename}.")
         else:
             print(f"Failed to dump sector 0 with flash size {hex(length)} as {filename}.")
@@ -448,7 +534,7 @@ class DA_handler(metaclass=LogBase):
                                             parttype=parttype)
 
     def da_erase(self, partitions: list, parttype: str):
-        countFP = 0
+        count_fp = 0
         if parttype == "user" or parttype is None:
             i = 0
             for partition in partitions:
@@ -462,19 +548,19 @@ class DA_handler(metaclass=LogBase):
                         print(
                             f"Formatted sector {str(rpartition.sector)} with " +
                             f"sector count {str(rpartition.sectors)}.")
-                        countFP += 1
+                        count_fp += 1
                     else:
                         print(
                             f"Failed to format sector {str(rpartition.sector)} with " +
                             f"sector count {str(rpartition.sectors)}.")
-                        countFP -= 1
+                        count_fp -= 1
                 else:
                     self.error(f"Error: Couldn't detect partition: {partition}\nAvailable partitions:")
                     for rpartition in res[1]:
                         self.info(rpartition.name)
-        if countFP == len(partitions) and countFP > 1:
+        if count_fp == len(partitions) and count_fp > 1:
             print("All partitions formatted.")
-        elif countFP != len(partitions) and countFP > 1:
+        elif count_fp != len(partitions) and count_fp > 1:
             print("Failed to format all partitions.")
 
     def da_ess(self, sector: int, sectors: int, parttype: str):
@@ -486,7 +572,7 @@ class DA_handler(metaclass=LogBase):
                 wsize = min(sectorsize, 0x200000)
                 if self.mtk.daloader.writeflash(addr=sector * self.config.pagesize,
                                                 length=wsize,
-                                                filename=None,
+                                                filename="",
                                                 wdata=wipedata[:wsize],
                                                 parttype="user"):
                     print(
@@ -530,7 +616,7 @@ class DA_handler(metaclass=LogBase):
                         wsize = min(sectorsize, 0x200000)
                         if self.mtk.daloader.writeflash(addr=sector * self.config.pagesize,
                                                         length=wsize,
-                                                        filename=None,
+                                                        filename="",
                                                         wdata=wipedata[:wsize],
                                                         parttype=parttype):
                             print(
@@ -576,7 +662,7 @@ class DA_handler(metaclass=LogBase):
         if self.mtk.config.chipconfig.efuse_addr is not None:
             base = self.mtk.config.chipconfig.efuse_addr
             hwcode = self.mtk.config.hwcode
-            efuseconfig = efuse(base, hwcode)
+            efuseconfig = Efuse(base, hwcode)
             for idx in range(len(efuseconfig.efuses)):
                 addr = efuseconfig.efuses[idx]
                 if addr < 0x1000:
@@ -585,6 +671,18 @@ class DA_handler(metaclass=LogBase):
                     data = bytearray(self.mtk.daloader.peek(addr=addr, length=4))
                 self.info(f"EFuse Idx {hex(idx)}: {data.hex()}")
 
+    def get_current_slot(self):
+        tmp = self.da_read_partition("misc")
+        if tmp == b"":
+            tmp = self.da_read_partition("para")
+        if tmp != b"":
+            slot = tmp[0x800:0x802].decode('utf-8')
+            if slot == "\x00\x00":
+                slot = ""
+        else:
+            slot = ""
+        return slot
+
     def da_brom(self, filename: str):
         return self.mtk.daloader.dump_brom(filename)
 
@@ -592,9 +690,9 @@ class DA_handler(metaclass=LogBase):
         bytestoread = length
         pos = 0
         pagesize = 0x200
-        if self.mtk.daloader.flashmode == damodes.XFLASH:
+        if self.mtk.daloader.flashmode == DAmodes.XFLASH:
             pagesize = self.mtk.daloader.get_packet_length()
-        pg = progress(pagesize)
+        pg = Progress(pagesize)
         bytesread = 0
         wf = None
         if filename is not None:
@@ -612,7 +710,8 @@ class DA_handler(metaclass=LogBase):
                 pos += len(data)
                 bytesread += len(data)
                 bytestoread -= len(data)
-            except Exception:
+            except Exception as err:
+                self.error(err)
                 pass
         pg.show_progress("Dump:", 100, 100)
         if filename is not None:
@@ -633,6 +732,7 @@ class DA_handler(metaclass=LogBase):
                 data = bytes.fromhex(data)
         if self.mtk.daloader.poke(addr=addr, data=data):
             self.info(f"Successfully wrote data to {hex(addr)}, length {hex(len(data))}")
+
 
     def handle_da_cmds(self, mtk, cmd: str, args):
         if mtk is None or mtk.daloader is None:
@@ -690,9 +790,10 @@ class DA_handler(metaclass=LogBase):
             else:
                 print(f"Failed to dump offset {hex(start)} with length {hex(length)} as {filename}.")
         elif cmd == "fs":
-            print(f'Mounting FUSE fs at: {args.mountpoint}...')
-            fs = FUSE(MtkDaFS(self, rw=args.rw), mountpoint=args.mountpoint, foreground=True, allow_other=True,
-                      nothreads=True)
+            if FUSE is not None:
+                print(f'Mounting FUSE fs at: {args.mountpoint}...')
+                fs = FUSE(MtkDaFS(self, rw=args.rw), mountpoint=args.mountpoint, foreground=True, allow_other=True,
+                          nothreads=True)
         elif cmd == "footer":
             filename = args.filename
             self.da_footer(filename=filename)
@@ -749,7 +850,7 @@ class DA_handler(metaclass=LogBase):
             partitions = partitionname.split(",")
             self.da_es(partitions=partitions, parttype=parttype, sectors=sectors)
         elif cmd == "ess":
-            sector = args.startsector
+            sector = getint(args.startsector)
             parttype = args.parttype
             sectors = getint(args.sectors)
             if args.sectors is None:
@@ -757,16 +858,16 @@ class DA_handler(metaclass=LogBase):
                 self.close()
             self.da_ess(sector=sector, parttype=parttype, sectors=sectors)
         elif cmd == "reset":
-            if os.path.exists(".state"):
-                os.remove(".state")
-                if os.path.exists(os.path.join("logs", "hwparam.json")):
-                    os.remove(os.path.join("logs", "hwparam.json"))
+            if os.path.exists(os.path.join(self.mtk.config.hwparam_path, ".state")):
+                os.remove(os.path.join(self.mtk.config.hwparam_path, ".state"))
+                if os.path.exists(os.path.join(self.mtk.config.hwparam_path, "hwparam.json")):
+                    os.remove(os.path.join(self.mtk.config.hwparam_path, "hwparam.json"))
             mtk.daloader.shutdown(bootmode=0)
             print("Reset command was sent. Disconnect usb cable to power off.")
         elif cmd == "da":
             subcmd = args.subcmd
             if subcmd is None:
-                print("Available da cmds are: [peek, poke, generatekeys, seccfg, rpmb, meta, memdump, efuse, dumpbrom]")
+                print("Available da cmds are: [peek, poke, generatekeys, seccfg, rpmb, meta, memdump, efuse, dumpbrom, vbmeta]")
                 return
             if subcmd == "peek":
                 addr = getint(args.address)
@@ -827,14 +928,17 @@ class DA_handler(metaclass=LogBase):
                 if rpmb_subcmd is None:
                     print('Available da xflash rpmb cmds are: [r w]')
                 if rpmb_subcmd == "r":
-                    mtk.daloader.read_rpmb(args.filename)
+                    mtk.daloader.read_rpmb(args.filename, args.sector, args.sectors)
                 elif rpmb_subcmd == "w":
-                    mtk.daloader.write_rpmb(args.filename)
+                    mtk.daloader.write_rpmb(args.filename, args.sector, args.sectors)
                 elif rpmb_subcmd == "e":
-                    mtk.daloader.erase_rpmb()
+                    mtk.daloader.erase_rpmb(args.sector, args.sectors)
             elif subcmd == "meta":
                 metamode = args.metamode
                 if metamode is None:
                     print("metamode is needed [usb,uart,off]!")
                 else:
                     mtk.daloader.setmetamode(metamode)
+            elif subcmd == "vbmeta":
+                vbmode = int(args.vbmode)
+                self.da_vbmeta(vbmode=vbmode)

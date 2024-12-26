@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
-# (c) B.Kerler 2018-2023 GPLv3 License
+# (c) B.Kerler 2018-2024 GPLv3 License
 import logging
 import os
 from struct import pack, unpack
@@ -21,7 +21,7 @@ regval = {
 }
 
 
-class cqdma_reg:
+class CqdmaReg:
     def __init__(self, setup):
         self.cqdma_base = setup.cqdma_base
         self.read32 = setup.read32
@@ -29,25 +29,26 @@ class cqdma_reg:
 
     def __setattr__(self, key, value):
         if key in ("cqdma_base", "read32", "write32", "regval"):
-            return super(cqdma_reg, self).__setattr__(key, value)
+            return super(CqdmaReg, self).__setattr__(key, value)
         if key in regval:
             addr = regval[key] + self.cqdma_base
             return self.write32(addr, value)
         else:
-            return super(cqdma_reg, self).__setattr__(key, value)
+            return super(CqdmaReg, self).__setattr__(key, value)
 
     def __getattribute__(self, item):
         if item in ("cqdma_base", "read32", "write32", "regval"):
-            return super(cqdma_reg, self).__getattribute__(item)
+            return super(CqdmaReg, self).__getattribute__(item)
         if item in regval:
             addr = regval[item] + self.cqdma_base
             return self.read32(addr)
         else:
-            return super(cqdma_reg, self).__getattribute__(item)
+            return super(CqdmaReg, self).__getattribute__(item)
 
 
-class cqdma(metaclass=LogBase):
+class Cqdma(metaclass=LogBase):
     def __init__(self, setup, loglevel=logging.INFO):
+        self.chipconfig = None
         self.setup = setup
         self.hwcode = setup.hwcode
         self.__logger = self.__logger
@@ -56,7 +57,7 @@ class cqdma(metaclass=LogBase):
         self.info = self.__logger.info
         self.cqdma_base = setup.cqdma_base
         self.ap_dma_mem = setup.ap_dma_mem
-        self.reg = cqdma_reg(setup)
+        self.reg = CqdmaReg(setup)
         if loglevel == logging.DEBUG:
             logfilename = os.path.join("logs", "log.txt")
             fh = logging.FileHandler(logfilename, encoding='utf-8')

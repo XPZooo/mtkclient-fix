@@ -1,29 +1,32 @@
+import hashlib
+import hmac
 import os
+import sys
 from struct import unpack, pack
 
-from mtkclient.config.payloads import pathconfig
-from mtkclient.config.brom_config import efuse
+from mtkclient.config.payloads import PathConfig
+from mtkclient.config.brom_config import Efuse
 from mtkclient.Library.error import ErrorHandler, ErrorCodes_XFlash
-from mtkclient.Library.Hardware.hwcrypto import crypto_setup, hwcrypto
-from mtkclient.Library.utils import LogBase, progress, logsetup, find_binary
-from mtkclient.Library.Hardware.seccfg import seccfgV3, seccfgV4
-from mtkclient.Library.utils import mtktee
+from mtkclient.Library.Hardware.hwcrypto import CryptoSetup, HwCrypto
+from mtkclient.Library.utils import LogBase, Progress, logsetup, find_binary
+from mtkclient.Library.Hardware.seccfg import SecCfgV3, SecCfgV4
+from mtkclient.Library.utils import MTKTee
 import json
 
 
 class XCmd:
     CUSTOM_ACK = 0x0F0000
-    CUSTOM_READ = 0x0F0001
+    CUSTOM_READMEM = 0x0F0001
     CUSTOM_READREGISTER = 0x0F0002
-    CUSTOM_WRITE = 0x0F0003
+    CUSTOM_WRITEMEM = 0x0F0003
     CUSTOM_WRITEREGISTER = 0x0F0004
-    CUSTOM_INIT_RPMB = 0x0F0005
-    CUSTOM_READ_RPMB = 0x0F0006
-    CUSTOM_WRITE_RPMB = 0x0F0007
-    CUSTOM_INIT_UFS_RPMB = 0x0F0008
-    CUSTOM_READ_UFS_RPMB = 0x0F0009
-    CUSTOM_WRITE_UFS_RPMB = 0x0F000A
-    CUSTOM_SET_RPMB_KEY = 0x0F000B
+    CUSTOM_SET_STORAGE = 0x0F0005
+    CUSTOM_RPMB_SET_KEY = 0x0F0006
+    CUSTOM_RPMB_PROG_KEY = 0x0F0007
+    CUSTOM_RPMB_INIT = 0x0F0008
+    CUSTOM_RPMB_READ = 0x0F0009
+    CUSTOM_RPMB_WRITE = 0x0F000A
+    CUSTOM_SEJ_HW = 0x0F000B
 
 
 rpmb_error = [
@@ -38,10 +41,12 @@ rpmb_error = [
 ]
 
 
-class xflashext(metaclass=LogBase):
+class XFlashExt(metaclass=LogBase):
     def __init__(self, mtk, xflash, loglevel):
-        self.pathconfig = pathconfig()
-        self.__logger = logsetup(self, self.__logger, loglevel, mtk.config.gui)
+        self.lasterror = None
+        self.pathconfig = PathConfig()
+        self.__logger, self.info, self.debug, self.warning, self.error = logsetup(self, self.__logger,
+                                                                                  loglevel, mtk.config.gui)
         self.mtk = mtk
         self.loglevel = loglevel
         self.__logger = self.__logger
@@ -125,6 +130,7 @@ class xflashext(metaclass=LogBase):
             ufshcd_queuecommand_ptr = daextdata.find(b"\x55\x55\x55\x55")
             ufshcd_get_free_tag_ptr = daextdata.find(b"\x66\x66\x66\x66")
             ptr_g_ufs_hba_ptr = daextdata.find(b"\x77\x77\x77\x77")
+            efuse_addr_ptr = daextdata.find(b"\x88\x88\x88\x88")
 
             if register_ptr != -1 and mmc_get_card_ptr != -1:
                 if register_devctrl:
@@ -157,6 +163,8 @@ class xflashext(metaclass=LogBase):
                 if g_ufs_hba is None:
                     g_ufs_hba = 0
 
+                efuse_addr = self.config.chipconfig.efuse_addr
+
                 # Patch the addr
                 daextdata[register_ptr:register_ptr + 4] = pack("<I", register_devctrl)
                 daextdata[mmc_get_card_ptr:mmc_get_card_ptr + 4] = pack("<I", mmc_get_card)
@@ -165,6 +173,8 @@ class xflashext(metaclass=LogBase):
                 daextdata[ufshcd_get_free_tag_ptr:ufshcd_get_free_tag_ptr + 4] = pack("<I", ufshcd_get_free_tag)
                 daextdata[ufshcd_queuecommand_ptr:ufshcd_queuecommand_ptr + 4] = pack("<I", ufshcd_queuecommand)
                 daextdata[ptr_g_ufs_hba_ptr:ptr_g_ufs_hba_ptr + 4] = pack("<I", g_ufs_hba)
+                if efuse_addr_ptr!=-1:
+                    daextdata[efuse_addr_ptr:efuse_addr_ptr + 4] = pack("<I", efuse_addr)
 
                 # print(hexlify(daextdata).decode('utf-8'))
                 # open("daext.bin","wb").write(daextdata)
@@ -174,12 +184,13 @@ class xflashext(metaclass=LogBase):
     def patch_da1(self, da1):
         # Patch error 0xC0020039
         self.info("Patching da1 ...")
+        da1patched = None
         if da1 is not None:
             da1patched = bytearray(da1)
             da1patched = self.mtk.patch_preloader_security_da1(da1patched)
             # Patch security
 
-            da_version_check = find_binary(da1, b"\x1F\xB5\x00\x23\x01\xA8\x00\x93\x00\xF0\xDE\xFE")
+            da_version_check = find_binary(da1, b"\x1F\xB5\x00\x23\x01\xA8\x00\x93\x00\xF0")
             if da_version_check is not None:
                 da1patched = bytearray(da1patched)
                 da1patched[da_version_check:da_version_check + 4] = b"\x00\x20\x70\x47"
@@ -200,25 +211,44 @@ class xflashext(metaclass=LogBase):
         huawei = find_binary(da2, b"\x01\x2B\x03\xD1\x01\x23", pos)
         if huawei is not None:
             da2patched[huawei:huawei + 4] = b"\x00\x00\x00\x00"
-        # Patch oppo security mt6765
-        oppo = find_binary(da2, b"\x01\x4B\x18\x78\x70\x47")
-        if oppo is not None:
-            da2patched[oppo:oppo + 4] = b"\x4F\xF0\x01\x00"
-        # Patch oppo security
-        oppo = 0
-        pos = 0
-        while oppo is not None:
-            oppo = find_binary(da2, b"\x01\x3B\x01\x2B\x08\xD9", pos)
+        if find_binary(da2, b"[oplus]") or find_binary(da2, b"[OPPO]"):
+            # Patch oppo security mt6765
+            oppo = find_binary(da2, b"\x0A\x00\x00\xE0.\x00\x00\xE0")
             if oppo is not None:
-                da2patched[oppo:oppo + 4] = b"\x01\x20\x08\xBD"
-                pos = oppo + 1
-        # Patch security
-        is_security_enabled = find_binary(da2, b"\x01\x23\x03\x60\x00\x20\x70\x47")
-        if is_security_enabled != -1:
-            da2patched[is_security_enabled:is_security_enabled + 2] = b"\x00\x23"
+                auth_flag_ptr = int.from_bytes(da2patched[oppo - 4:oppo], 'little')
+                auth_flag_offset = auth_flag_ptr - self.mtk.daloader.daconfig.da_loader.region[2].m_start_addr
+                if int.from_bytes(da2patched[auth_flag_offset:auth_flag_offset + 4], 'little') == 3:
+                    da2patched[auth_flag_offset:auth_flag_offset + 1] = b"\x01"
+                    self.info("Oppo g_oppo_auth_status patched.")
+            else:
+                oppo = find_binary(da2, b"\xFF\xFF\xFF\xFF\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x03")
+                if oppo is not None:
+                    da2patched[oppo + 0x10:oppo + 0x10 + 1] = b"\x01"
+                    self.info("Oppo g_oppo_auth_status patched.")
+                else:
+                    # 20271
+                    oppo = find_binary(da2, b"\x63\x88\x74\x18\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x03")
+                    if oppo is not None:
+                        da2patched[oppo + 0x10:oppo + 0x10 + 1] = b"\x01"
+                        self.info("Oppo g_oppo_auth_status patched.")
+
+            # Patch oppo security
+            oppo = 0
+            pos = 0
+            while oppo is not None:
+                oppo = find_binary(da2, b"\x01\x3B\x01\x2B\x08\xD9", pos)
+                if oppo is not None:
+                    da2patched[oppo:oppo + 4] = b"\x01\x20\x08\xBD"
+                    pos = oppo + 1
+
+        # Patch hash binding 0xC0020004 or 0xC0020005
+        hashbind = find_binary(da2, b"\x01\x23\x03\x60\x00\x20\x70\x47\x70\xB5")
+        if hashbind is not None:
+            da2patched[hashbind:hashbind + 1] = b"\x00"
         else:
-            self.warning("Security check not patched.")
-        # Patch hash check
+            self.warning("Hash binding not patched.")
+
+        # Patch hash check cmd_boot_to
         authaddr = find_binary(da2, int.to_bytes(0xC0070004, 4, 'little'))
         if authaddr:
             da2patched[authaddr:authaddr + 4] = int.to_bytes(0, 4, 'little')
@@ -232,11 +262,25 @@ class xflashext(metaclass=LogBase):
                     da2patched[authaddr:authaddr + 14] = b"\x4F\xF0\x00\x09\x32\x46\x01\x98\x03\x99\x4F\xF0\x00\x09"
                 else:
                     self.warning("Hash check not patched.")
+        # Disable security checks
+        security_check = find_binary(da2, b"\x01\x23\x03\x60\x00\x20\x70\x47\x70\xB5")
+        if security_check:
+            da2patched[security_check:security_check + 2] = b"\x00\x23"
+            self.info("Security check patched")
         # Disable da anti rollback version check
         antirollback = find_binary(da2, int.to_bytes(0xC0020053, 4, 'little'))
         if antirollback:
             da2patched[antirollback:antirollback + 4] = int.to_bytes(0, 4, 'little')
             self.info("DA version anti-rollback patched")
+        disable_sbc = find_binary(da2, b"\x02\x4B\x18\x68\xC0\xF3\x40\x00\x70\x47")
+        if disable_sbc:
+            # MOV R0, #0
+            da2patched[disable_sbc + 4:disable_sbc + 8] = b"\x4F\xF0\x00\x00"
+            self.info("SBC patched to be disabled")
+        register_readwrite = find_binary(da2, int.to_bytes(0xC004000D, 4, 'little'))
+        if register_readwrite:
+            da2patched[register_readwrite:register_readwrite + 4] = int.to_bytes(0, 4, 'little')
+            self.info("Register read/write not allowed patched")
         # Patch write not allowed
         # open("da2.bin","wb").write(da2patched)
         idx = 0
@@ -277,14 +321,32 @@ class xflashext(metaclass=LogBase):
         return False
 
     def custom_read(self, addr, length):
-        if self.cmd(XCmd.CUSTOM_READ):
-            self.xsend(data=addr, is64bit=True)
-            self.xsend(length)
-            data = self.xread()
+        data = bytearray()
+        pos = 0
+        while pos < length:
+            if self.cmd(XCmd.CUSTOM_READMEM):
+                self.xsend(data=addr + pos, is64bit=True)
+                sz = min(length, 0x10000)
+                self.xsend(sz)
+                tmp = self.xread()
+                data.extend(tmp)
+                pos += len(tmp)
+                status = self.status()
+                if status != 0:
+                    break
+        return data[:length]
+
+    def custom_set_storage(self, ufs: bool = False):
+        if self.cmd(XCmd.CUSTOM_SET_STORAGE):
+            if ufs:
+                self.xsend(int.to_bytes(1, 4, 'little'))
+            else:
+                # EMMC
+                self.xsend(int.to_bytes(0, 4, 'little'))
             status = self.status()
             if status == 0:
-                return data
-        return b""
+                return True
+        return False
 
     def custom_readregister(self, addr):
         if self.cmd(XCmd.CUSTOM_READREGISTER):
@@ -296,7 +358,7 @@ class xflashext(metaclass=LogBase):
         return b""
 
     def custom_write(self, addr, data):
-        if self.cmd(XCmd.CUSTOM_WRITE):
+        if self.cmd(XCmd.CUSTOM_WRITEMEM):
             self.xsend(data=addr, is64bit=True)
             self.xsend(len(data))
             self.xsend(data)
@@ -356,41 +418,51 @@ class xflashext(metaclass=LogBase):
             self.writeregister(addr + i, unpack("<I", value))
         return True
 
-    def custom_rpmb_read(self, sector, ufs=False):
-        cmd = XCmd.CUSTOM_READ_RPMB
-        if ufs:
-            cmd = XCmd.CUSTOM_READ_UFS_RPMB
+    def custom_rpmb_read(self, sector, sectors):
+        data = bytearray()
+        cmd = XCmd.CUSTOM_RPMB_READ
         if self.cmd(cmd):
             self.xsend(sector)
-            resp = unpack("<H", self.xread())[0]
-            if resp == 0x0:
-                data = self.xread()
-                status = self.status()
-                if status == 0:
-                    return data
-            else:
-                self.error(rpmb_error[resp])
-                status = self.status()
-        return b''
+            self.xsend(sectors)
+            for i in range(sectors):
+                tmp = self.xread()
+                if len(tmp) != 0x100:
+                    resp = int.from_bytes(tmp, 'little')
+                    if resp in rpmb_error:
+                        msg = rpmb_error[resp]
+                    else:
+                        msg = f"Error: {hex(resp)}"
+                    self.error(f"Error on sector {hex(sector)}: {msg})")
+                    return b""
+                else:
+                    data.extend(tmp)
+        status = self.status()
+        if status == 0:
+            return data
+        else:
+            return b""
 
-    def custom_rpmb_write(self, sector, data: bytes, ufs=False):
-        if len(data) != 0x100:
+    def custom_rpmb_write(self, sector, sectors, data: bytes):
+        if len(data)%0x100!=0:
             self.error("Incorrect rpmb frame length. Aborting")
             return False
-        cmd = XCmd.CUSTOM_WRITE_RPMB
-        if ufs:
-            cmd = XCmd.CUSTOM_WRITE_UFS_RPMB
+        cmd = XCmd.CUSTOM_RPMB_WRITE
         if self.cmd(cmd):
             self.xsend(sector)
-            self.xsend(data[:0x100])
-            resp = unpack("<H", self.xread())[0]
-            if resp != 0:
-                self.error(rpmb_error[resp])
-                status = self.status()
-                return False
+            self.xsend(sectors)
+            for i in range(sectors):
+                self.xsend(data[i * 0x100:(i * 0x100) + 0x100])
+                resp = unpack("<H", self.xflash.get_response(raw=True))[0]
+                if resp != 0:
+                    if resp in rpmb_error:
+                        self.error(rpmb_error[resp])
+                        status = self.status()
+                        return False
             status = self.status()
             if status == 0:
-                return resp
+                return True
+
+        status = self.status()
         return False
 
     def custom_rpmb_init(self):
@@ -403,27 +475,25 @@ class xflashext(metaclass=LogBase):
                 self.info("Generating sej rpmbkey...")
                 rpmbkey = hwc.aes_hwcrypt(mode="rpmb", data=meid, btype="sej", otp=otp)
                 if rpmbkey is not None:
-                    if self.cmd(XCmd.CUSTOM_SET_RPMB_KEY):
+                    if self.cmd(XCmd.CUSTOM_RPMB_SET_KEY):
                         self.xsend(rpmbkey)
                         read_key = self.xread()
                         if self.status() == 0x0:
                             if rpmbkey == read_key:
                                 self.info("Setting rpmbkey: ok")
-        ufs = False
-        if self.xflash.emmc.rpmb_size != 0:
-            ufs = False
-        elif self.xflash.ufs.block_size != 0:
-            ufs = True
-        cmd = XCmd.CUSTOM_INIT_RPMB
-        if ufs:
-            cmd = XCmd.CUSTOM_INIT_UFS_RPMB
+        cmd = XCmd.CUSTOM_RPMB_INIT
         if self.cmd(cmd):
-            derivedrpmb = self.xread()
-            if int.from_bytes(derivedrpmb[:4], 'little') != 0xff:
-                status = self.status()
+            status = self.status()
+            if status == 0:
+                derivedrpmb = self.xread()
+                self.status()
                 if status == 0:
-                    self.info("Derived rpmb key:" + derivedrpmb.hex())
+                    self.info("Derived rpmb key: " + derivedrpmb.hex())
                     return True
+            else:
+                if status in rpmb_error:
+                    print(rpmb_error[status])
+                    return False
             self.error("Failed to derive a valid rpmb key.")
         return False
 
@@ -437,82 +507,106 @@ class xflashext(metaclass=LogBase):
             otp = 32 * b"\x00"
         hwc.sej.sej_set_otp(otp)
 
-    def read_rpmb(self, filename=None, display=True):
-        progressbar = progress(1, self.mtk.config.guiprogress)
-        sectors = 0
+    def read_rpmb(self, filename=None, sector: int = None, sectors: int = None, display=True):
+        progressbar = Progress(1, self.mtk.config.guiprogress)
         # val = self.custom_rpmb_init()
-        ufs = False
-        if self.xflash.emmc.rpmb_size != 0:
-            sectors = self.xflash.emmc.rpmb_size // 0x100
-            ufs = False
-        elif self.xflash.ufs.block_size != 0:
-            sectors = (512 * 256)
-            ufs = True
+        if sector is None:
+            sector = 0
+        if sectors==0:
+            if self.mtk.daloader.daconfig.flashtype == "emmc":
+                sectors = self.xflash.emmc.rpmb_size // 0x100
+            elif self.mtk.daloader.daconfig.flashtype == "ufs":
+                sectors = (512 * 256)
         if filename is None:
             filename = "rpmb.bin"
         if sectors > 0:
             with open(filename, "wb") as wf:
-                for sector in range(sectors):
+                pos = 0
+                toread = sectors
+                while toread > 0:
                     if display:
-                        progressbar.show_progress("RPMB read", sector * 0x100, sectors * 0x100, display)
-                    data = self.custom_rpmb_read(sector=sector, ufs=ufs)
+                        progressbar.show_progress("RPMB read", pos * 0x100, sectors * 0x100, display)
+                    sz = min(sectors - pos, 0x10)
+                    data = self.custom_rpmb_read(sector=sector + pos, sectors=sz)
                     if data == b"":
                         self.error("Couldn't read rpmb.")
                         return False
                     wf.write(data)
+                    pos += sz
+                    toread -= sz
+            if display:
+                progressbar.show_progress("RPMB read", sectors * 0x100, sectors * 0x100, display)
             self.info(f"Done reading rpmb to {filename}")
             return True
         return False
 
-    def write_rpmb(self, filename=None, display=True):
-        progressbar = progress(1, self.mtk.config.guiprogress)
+    def write_rpmb(self, filename=None, sector: int = None, sectors: int = None, display=True):
+        progressbar = Progress(1, self.mtk.config.guiprogress)
         if filename is None:
             self.error("Filename has to be given for writing to rpmb")
             return False
         if not os.path.exists(filename):
             self.error(f"Couldn't find {filename} for writing to rpmb.")
             return False
-        ufs = False
-        sectors = 0
-        if self.xflash.emmc.rpmb_size != 0:
-            sectors = self.xflash.emmc.rpmb_size // 0x100
-        elif self.xflash.ufs.block_size != 0:
-            sectors = (512 * 256)
+        if sectors == 0:
+            max_sector_size = (512 * 256)
+            if self.xflash.emmc is not None:
+                max_sector_size = self.xflash.emmc.rpmb_size // 0x100
+        else:
+            max_sector_size = sectors
+        filesize = os.path.getsize(filename)
+        sectors = min(filesize // 256, max_sector_size)
         if self.custom_rpmb_init():
             if sectors > 0:
                 with open(filename, "rb") as rf:
-                    for sector in range(sectors):
+                    pos = 0
+                    towrite = sectors
+                    while towrite > 0:
                         if display:
-                            progressbar.show_progress("RPMB written", sector * 0x100, sectors * 0x100, display)
-                        if not self.custom_rpmb_write(sector=sector, data=rf.read(0x100), ufs=ufs):
-                            self.error(f"Couldn't write rpmb at sector {sector}.")
+                            progressbar.show_progress("RPMB written", pos * 0x100, sectors * 0x100, display)
+                        sz = min(sectors - pos, 0x10)
+                        if not self.custom_rpmb_write(sector=sector+pos, sectors=sz, data=rf.read(0x100*sz)):
+                            self.error(f"Couldn't write rpmb at sector {sector+pos}.")
                             return False
-                self.info(f"Done reading writing {filename} to rpmb")
+                        pos += sz
+                        towrite -= sz
+                if display:
+                    progressbar.show_progress("RPMB written", sectors * 0x100, sectors * 0x100, display)
+                self.info(f"Done writing {filename} to rpmb")
                 return True
         return False
 
-    def erase_rpmb(self, display=True):
-        progressbar = progress(1, self.mtk.config.guiprogress)
+    def erase_rpmb(self, sector: int = None, sectors: int = None, display=True):
+        progressbar = Progress(1, self.mtk.config.guiprogress)
         ufs = False
-        sectors = 0
-        if self.xflash.emmc.rpmb_size != 0:
-            sectors = self.xflash.emmc.rpmb_size // 0x100
-        elif self.xflash.ufs.block_size != 0:
-            sectors = (512 * 256)
+        if sector is None:
+            sector = 0
+        if sectors is None:
+            if self.xflash.emmc is not None:
+                sectors = self.xflash.emmc.rpmb_size // 0x100
+            else:
+                sectors = (512 * 256)
         if self.custom_rpmb_init():
             if sectors > 0:
-                for sector in range(sectors):
+                pos = 0
+                towrite = sectors
+                while towrite > 0:
+                    sz = min(sectors - pos, 0x10)
                     if display:
-                        progressbar.show_progress("RPMB erased", sector * 0x100, sectors * 0x100, display)
-                    if not self.custom_rpmb_write(sector=sector, data=b"\x00" * 0x100, ufs=ufs):
-                        self.error(f"Couldn't erase rpmb at sector {sector}.")
+                        progressbar.show_progress("RPMB erased", pos * 0x100, sectors * 0x100, display)
+                    if not self.custom_rpmb_write(sector=sector+pos, sectors=sz, data=b"\x00" * 0x100 * sz):
+                        self.error(f"Couldn't erase rpmb at sector {sector+pos}.")
                         return False
+                    pos += sz
+                    towrite -= sz
+                if display:
+                    progressbar.show_progress("RPMB erased", sectors * 0x100, sectors * 0x100, display)
                 self.info("Done erasing rpmb")
                 return True
         return False
 
     def cryptosetup(self):
-        setup = crypto_setup()
+        setup = CryptoSetup()
         setup.blacklist = self.config.chipconfig.blacklist
         setup.gcpu_base = self.config.chipconfig.gcpu_base
         setup.dxcc_base = self.config.chipconfig.dxcc_base
@@ -523,7 +617,7 @@ class xflashext(metaclass=LogBase):
         setup.write32 = self.writeregister
         setup.writemem = self.writemem
         setup.hwcode = self.config.hwcode
-        return hwcrypto(setup, self.loglevel, self.config.gui)
+        return HwCrypto(setup, self.loglevel, self.config.gui)
 
     def seccfg(self, lockflag):
         if lockflag not in ["unlock", "lock"]:
@@ -548,10 +642,10 @@ class xflashext(metaclass=LogBase):
         hwc = self.cryptosetup()
         if seccfg_data[:0xC] == b"AND_SECCFG_v":
             self.info("Detected V3 Lockstate")
-            sc_org = seccfgV3(hwc, self.mtk)
+            sc_org = SecCfgV3(hwc, self.mtk)
         elif seccfg_data[:4] == b"\x4D\x4D\x4D\x4D":
             self.info("Detected V4 Lockstate")
-            sc_org = seccfgV4(hwc, self.mtk)
+            sc_org = SecCfgV4(hwc, self.mtk)
         else:
             return False, "Unknown lockstate or no lockstate"
         if not sc_org.parse(seccfg_data):
@@ -561,7 +655,7 @@ class xflashext(metaclass=LogBase):
             return False, writedata
         if self.xflash.writeflash(addr=partition.sector * self.mtk.daloader.daconfig.pagesize,
                                   length=len(writedata),
-                                  filename=None, wdata=writedata, parttype="user", display=True):
+                                  filename="", wdata=writedata, parttype="user", display=True):
             return True, "Successfully wrote seccfg."
         return False, "Error on writing seccfg config to flash."
 
@@ -573,7 +667,7 @@ class xflashext(metaclass=LogBase):
             while idx != -1:
                 idx = data.find(b"EET KTM ", idx + 1)
                 if idx != -1:
-                    mt = mtktee()
+                    mt = MTKTee()
                     mt.parse(data[idx:])
                     rdata = hwc.mtee(data=mt.data, keyseed=mt.keyseed, ivseed=mt.ivseed,
                                      aeskey1=aeskey1, aeskey2=aeskey2)
@@ -583,7 +677,7 @@ class xflashext(metaclass=LogBase):
         if self.mtk.config.chipconfig.efuse_addr is not None:
             base = self.mtk.config.chipconfig.efuse_addr
             hwcode = self.mtk.config.hwcode
-            efuseconfig = efuse(base, hwcode)
+            efuseconfig = Efuse(base, hwcode)
             addr = efuseconfig.efuses[idx]
             if addr < 0x1000:
                 return int.to_bytes(addr, 4, 'little')
@@ -595,7 +689,7 @@ class xflashext(metaclass=LogBase):
         if self.mtk.config.chipconfig.efuse_addr is not None:
             base = self.mtk.config.chipconfig.efuse_addr
             addr = base + 0x90
-            data = bytearray(self.mtk.daloader.peek(addr=addr, length=0x20))
+            data = bytearray(self.mtk.daloader.peek(addr=addr, length=0x30))
             return data
         return None
 
@@ -603,7 +697,7 @@ class xflashext(metaclass=LogBase):
         if self.mtk.config.chipconfig.efuse_addr is not None:
             base = self.mtk.config.chipconfig.efuse_addr
             hwcode = self.mtk.config.hwcode
-            efuseconfig = efuse(base, hwcode)
+            efuseconfig = Efuse(base, hwcode)
             data = []
             for idx in range(len(efuseconfig.efuses)):
                 addr = efuseconfig.efuses[idx]
@@ -636,14 +730,16 @@ class xflashext(metaclass=LogBase):
                 data = b"".join([pack("<I", val) for val in self.readmem(base + 0x8EC, 0x16 // 4)])
                 self.config.meid = data
                 self.config.set_meid(data)
-            except Exception:
+            except Exception as err:
+                self.lasterror = err
                 return
         if self.config.socid is None:
             try:
                 data = b"".join([pack("<I", val) for val in self.readmem(base + 0x934, 0x20 // 4)])
                 self.config.socid = data
                 self.config.set_socid(data)
-            except Exception:
+            except Exception as err:
+                self.lasterror = err
                 return
         hwc = self.cryptosetup()
         meid = self.config.get_meid()
@@ -652,7 +748,8 @@ class xflashext(metaclass=LogBase):
         cid = self.config.get_cid()
         otp = self.config.get_otp()
         retval = {}
-        # data=hwc.aes_hwcrypt(data=bytes.fromhex("A9 E9 DC 38 BF 6B BD 12 CC 2E F9 E6 F5 65 E8 C6 88 F7 14 11 80 2E 4D 91 8C 2B 48 A5 BB 03 C3 E5"), mode="sst", btype="sej",
+        # data=hwc.aes_hwcrypt(data=bytes.fromhex("A9 E9 DC 38 BF 6B BD 12 CC 2E F9 E6 F5 65 E8 C6 88 F7 14 11 80 " +
+        # "2E 4D 91 8C 2B 48 A5 BB 03 C3 E5"), mode="sst", btype="sej",
         #                encrypt=False)
         # self.info(data.hex())
         pubk = self.read_pubk()
@@ -771,7 +868,7 @@ class xflashext(metaclass=LogBase):
             else:
                 self.info("SEJ Mode: No meid found. Are you in brom mode ?")
         if self.config.chipconfig.gcpu_base is not None:
-            if self.config.hwcode in [0x335, 0x8167, 0x8163, 0x8176]:
+            if self.config.hwcode in [0x335, 0x8167, 0x8168, 0x8163, 0x8176]:
                 self.info("Generating gcpu mtee2 key...")
                 mtee2 = hwc.aes_hwcrypt(btype="gcpu", mode="mtee")
                 if mtee2 is not None:

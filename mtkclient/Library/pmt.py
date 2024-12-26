@@ -1,26 +1,26 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
-# (c) B.Kerler 2018-2023
+# (c) B.Kerler 2018-2024
 
 try:
-    from mtkclient.Library.utils import LogBase, structhelper
+    from mtkclient.Library.utils import LogBase, Structhelper
 except Exception:
-    from utils import LogBase, structhelper
+    from utils import LogBase, Structhelper
 
 
-class pmt(metaclass=LogBase):
-    class pt_resident:
+class PMT(metaclass=LogBase):
+    class PtResident:
         def __init__(self, data):
-            sh = structhelper(data)
+            sh = Structhelper(data)
             self.name = sh.bytes(64)
             self.size = sh.qword()
             self.part_id = sh.qword()
             self.offset = sh.qword()
             self.mask_flags = sh.qword()
 
-    class pt_info:
+    class PtInfo:
         def __init__(self, data):
-            sh = structhelper(data)
+            sh = Structhelper(data)
             self.sequencenumber = sh.bytes(1)
             self.tool_or_sd_update = sh.bytes(1)
             tmp = sh.bytes(1)
@@ -30,9 +30,9 @@ class pmt(metaclass=LogBase):
             self.pt_changed = (tmp >> 4) & 0xF
             self.pt_has_space = tmp & 0xF
 
-    class pmt_header:
+    class PmtHeader:
         def __init__(self, data):
-            sh = structhelper(data)
+            sh = Structhelper(data)
             self.signature = sh.bytes(8)
             self.revision = sh.dword()
             self.header_size = sh.dword()

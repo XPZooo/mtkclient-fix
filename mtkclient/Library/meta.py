@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
-# (c) B.Kerler 2018-2023 GPLv3 License
+# (c) B.Kerler 2018-2024 GPLv3 License
 import time
 import sys
 import logging
@@ -20,7 +20,8 @@ class META(metaclass=LogBase):
 
     def __init__(self, mtk, loglevel=logging.INFO):
         self.mtk = mtk
-        self.__logger = logsetup(self, self.__logger, loglevel, mtk.config.gui)
+        self.__logger, self.info, self.debug, self.warning, self.error = logsetup(self, self.__logger, 
+                                                                                  loglevel, mtk.config.gui)
         self.gcpu = None
         self.config = mtk.config
         self.display = True
@@ -47,27 +48,26 @@ class META(metaclass=LogBase):
                 cdc.connected = cdc.connect()
                 if cdc.connected and cdc.pid == 0x2000:
                     counter += 1
-                    EP_OUT = cdc.EP_OUT.write
-                    EP_IN = cdc.EP_IN.read
+                    ep_out = cdc.EP_OUT.write
+                    ep_in = cdc.EP_IN.read
                     maxinsize = cdc.EP_IN.wMaxPacketSize
                     while True:
-                        resp = b""
                         try:
-                            resp = bytearray(EP_IN(maxinsize))
+                            resp = bytearray(ep_in(maxinsize))
                         except Exception:
                             break
                         if resp == b"READY":
-                            EP_OUT(metamode, len(metamode))
+                            ep_out(metamode, len(metamode))
                             while resp == b"READY":
-                                resp = bytearray(EP_IN(maxinsize))
+                                resp = bytearray(ep_in(maxinsize))
                             if resp in [b"ATEMEVDX", b"TOOBTSAF", b"ATEMATEM", b"TCAFTCAF", b"MYROTCAF"]:
                                 if resp == b"ATEMATEM":
-                                    EP_OUT(b"\x04\x00\x00\x00\x01\x00\x00\x00\x01\x00\x00\xC0")
-                                    EP_OUT(b"\x04\x00\x00\x00\x01\x00\x00\x00\x01\x00\x00\xC0")
-                                    EP_OUT(b"\x06\x00\x00\x00\x01\x00\x00\x00\x01\x00\x00\xC0\x00\x80\x00\x00")
+                                    ep_out(b"\x04\x00\x00\x00\x01\x00\x00\x00\x01\x00\x00\xC0")
+                                    ep_out(b"\x04\x00\x00\x00\x01\x00\x00\x00\x01\x00\x00\xC0")
+                                    ep_out(b"\x06\x00\x00\x00\x01\x00\x00\x00\x01\x00\x00\xC0\x00\x80\x00\x00")
                                     # INFO =
-                                    EP_IN(13)  # !READYATEM
-                                    EP_OUT(b"DISCONNECT")
+                                    ep_in(13)  # !READYATEM
+                                    ep_out(b"DISCONNECT")
                                 return True
                             self.warning(resp)
                 else:

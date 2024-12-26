@@ -9,7 +9,7 @@ Once the mtk script is running, boot into brom mode by powering off device, pres
 vol up + power or vol down + power and connect the phone. Once detected by the tool,
 release the buttons.
 
-## MT678x, MT689x, MT688x, MT698x
+## MT6781, MT6789, MT6855, MT6886, MT6895, MT6983, MT8985
 - These chipsets use a new protocol called V6 and the bootrom is patched, thus you need a valid da via --loader option. 
 - On some devices, preloader is deactivated, but you still use it by running "adb reboot edl".
 - This only works with UNFUSED devices currently.
@@ -27,35 +27,38 @@ release the buttons.
 ### Use Re LiveDVD (everything ready to go, based on Ubuntu):
 User: user, Password:user (based on Ubuntu 22.04 LTS)
 
-[Live DVD V4](https://www.androidfilehost.com/?fid=15664248565197184488)
-
-[Live DVD V4 Mirror](https://drive.google.com/file/d/10OEw1d-Ul_96MuT3WxQ3iAHoPC4NhM_X/view?usp=sharing)
-
+[Live DVD V6](https://www.androidfilehost.com/?fid=1109791587270922802)
 
 
 ## Install
 
-### Linux  / Mac OS - (Ubuntu recommended, no patched kernel needed except for kamakiri)
+### Linux - (Ubuntu recommended, no patched kernel needed except for kamakiri)
 
 #### Install python >=3.8, git and other deps
 
 #### For Debian/Ubuntu
 ```
-sudo apt install python3 git libusb-1.0-0 python3-pip
+sudo apt install python3 git libusb-1.0-0 python3-pip libfuse2
 ```
 #### For ArchLinux
 ```
-(sudo) pacman -S  python python-pip git libusb
+(sudo) pacman -S  python python-pip git libusb fuse2
 ```
 or
 ```
-yay -S python python-pip git libusb
+yay -S python python-pip git libusb fuse2
+```
+
+#### For Fedora
+```
+sudo dnf install python3 git libusb1 fuse
 ```
 
 #### Grab files 
 ```
 git clone https://github.com/bkerler/mtkclient
 cd mtkclient
+pip3 install -r requirements.txt
 pip3 install .
 ```
 
@@ -65,10 +68,39 @@ sudo usermod -a -G plugdev $USER
 sudo usermod -a -G dialout $USER
 sudo cp mtkclient/Setup/Linux/*.rules /etc/udev/rules.d
 sudo udevadm control -R
+sudo udevadm trigger
 ```
 Make sure to reboot after adding the user to dialout/plugdev. If the device
 has a vendor interface 0xFF (like LG), make sure to add "blacklist qcaux" to
 the "/etc/modprobe.d/blacklist.conf".
+
+---------------------------------------------------------------------------------------------------------------
+
+### macOS
+
+#### Install brew, macFUSE, OpenSSL
+
+```
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+brew install macfuse openssl
+```
+
+You may need to **reboot**
+
+#### Grab files 
+```
+git clone https://github.com/bkerler/mtkclient
+cd mtkclient
+```
+
+#### Create python 3.9 venv and install dependencies
+```
+python3.9 -m venv mtk_venv
+source mtk_venv/bin/activate
+pip3 install --pre --no-binary capstone capstone
+pip3 install PySide6 libusb
+pip3 install -r requirements.txt
+```
 
 ---------------------------------------------------------------------------------------------------------------
 
@@ -78,6 +110,9 @@ the "/etc/modprobe.d/blacklist.conf".
 - Install python >= 3.9 and git
 - If you install python from microsoft store, "python setup.py install" will fail, but that step isn't required.
 - WIN+R ```cmd```
+
+#### Install Winfsp (for fuse)
+Download and install [here](https://winfsp.dev/rel/)
 
 #### Grab files and install
 ```
@@ -91,6 +126,21 @@ pip3 install -r requirements.txt
 - Get usbdk installer (.msi) from [here](https://github.com/daynix/UsbDk/releases/) and install it
 - Test on device connect using "UsbDkController -n" if you see a device with 0x0E8D 0x0003
 - Works fine under Windows 10 and 11 :D
+
+#### Building wheel issues (creds to @Oyoh-Edmond)
+##### Download and Install the Build Tools:
+    Go to the Visual Studio Build Tools [download](https://visualstudio.microsoft.com/visual-cpp-build-tools) page.
+    Download the installer and run it.
+    
+###### Select the Necessary Workloads:
+    In the installer, select the "Desktop development with C++" workload.
+    Ensure that the "MSVC v142 - VS 2019 C++ x64/x86 build tools" (or later) component is selected.
+    You can also check "Windows 10 SDK" if it’s not already selected.
+    
+###### Complete the Installation:
+    Click on the "Install" button to begin the installation.
+    Follow the prompts to complete the installation.
+    Restart your computer if required.
 
 ---------------------------------------------------------------------------------------------------------------
 ### Use kamakiri (optional, only needed for mt6260 or older)
@@ -139,29 +189,38 @@ sudo reboot
 ### Using MTKTools via the graphical user interface:
 For the 'basics' you can use the GUI interface. This supports dumping partitions or the full flash for now. Run the following command:
 ```
-python mtk_gui
+python mtk_gui.py
+```
+
+### Using stock mtk functionality without exploits :
+```
+python mtk.py --stock
 ```
 
 ### Run multiple commands
 ```bash
-python mtk script run.example
+python mtk.py script examples/run.example
 ```
-See the file "[run.example](https://github.com/bkerler/mtkclient/blob/main/run.example)" on how to structure the script file
+or
+```
+python mtk.py multi "cmd1;cmd2"
+```
+See the file "[run.example](https://github.com/bkerler/mtkclient/blob/main/examples/run.example)" on how to structure the script file
 
 ### Root the phone (Tested with android 9 - 12)
 
 1. Dump boot and vbmeta
 ```
-python mtk r boot,vbmeta boot.img,vbmeta.img
+python mtk.py r boot,vbmeta boot.img,vbmeta.img
 ```
 
 2. Reboot the phone
 ```
-python mtk reset
+python mtk.py reset
 ```
 
 3. Download patched magisk for mtk:
-Download latest Magisk [here]([https://raw.githubusercontent.com/vvb2060/magisk_files/44ca9ed38c29e22fa276698f6c03bc1168df2c10/app-release.ap](https://github.com/topjohnwu/Magisk/releases)k)
+Download latest Magisk [here](https://github.com/topjohnwu/Magisk/releases/latest)
 
 4. Install on target phone
 - you need to enable usb-debugging via Settings/About phone/Version, Tap 7x on build number
@@ -185,14 +244,15 @@ mv [displayed magisk patched boot filename here] boot.patched
 
 7. Do the steps needed in section "Unlock bootloader below"
 
-8. Flash magisk-patched boot and empty vbmeta
+8. Flash magisk-patched boot and disable verity + verification on vbmeta
 ```
-python mtk w boot,vbmeta boot.patched,vbmeta.img.empty
+python mtk.py da vbmeta 3
+python mtk.py w boot boot.patched
 ```
 
 9. Reboot the phone
 ```
-python mtk reset
+python mtk.py reset
 ```
 
 10. Disconnect usb cable and enjoy your rooted phone :)
@@ -203,7 +263,17 @@ python mtk reset
 Example:
 
 ```
-python mtk payload --metamode FASTBOOT
+python mtk.py payload --metamode FASTBOOT
+```
+
+### Dump preloader
+```
+mtk.py r preloader preloader.bin --parttype boot1
+```
+
+### Dump serialnumber / special partition
+```
+mtk.py r preloader preloader.bin --parttype boot2
 ```
 
 ### Read efuses
@@ -211,28 +281,28 @@ python mtk payload --metamode FASTBOOT
 Example:
 
 ```
-python mtk da efuse
+python mtk.py da efuse
 ```
 
 ### Unlock bootloader
 
 1. Erase metadata and userdata (and md_udc if existing):
 ```
-python mtk e metadata,userdata,md_udc
+python mtk.py e metadata,userdata,md_udc
 ```
 
 2. Unlock bootloader:
 ```
-python mtk da seccfg unlock
+python mtk.py da seccfg unlock
 ```
 for relocking use:
 ```
-python mtk da seccfg lock
+python mtk.py da seccfg lock
 ```
 
 3. Reboot the phone:
 ```
-python mtk reset
+python mtk.py reset
 ```
 
 and disconnect usb cable to let the phone reboot.
@@ -247,57 +317,57 @@ then the device should boot within 5 seconds.
 Dump boot partition to filename boot.bin via preloader
 
 ```
-python mtk r boot boot.bin
+python mtk.py r boot boot.bin
 ```
 
 Dump boot partition to filename boot.bin via bootrom
 
 ```
-python mtk r boot boot.bin [--preloader=Loader/Preloader/your_device_preloader.bin]
+python mtk.py r boot boot.bin [--preloader=Loader/Preloader/your_device_preloader.bin]
 ```
 
 
 Dump preloader partition to filename preloader.bin via bootrom
 
 ```
-python mtk r preloader preloader.bin --parttype=boot1 [--preloader=Loader/Preloader/your_device_preloader.bin]
+python mtk.py r preloader preloader.bin --parttype=boot1 [--preloader=Loader/Preloader/your_device_preloader.bin]
 ```
 
 Read full flash to filename flash.bin (use --preloader for brom)
 
 ```
-python mtk rf flash.bin
+python mtk.py rf flash.bin
 ```
 
 Read full flash to filename flash.bin (use --preloader for brom) for IoT devices (MT6261/MT2301):
 
 ```
-python mtk rf flash.bin --iot
+python mtk.py rf flash.bin --iot
 ```
 
 Read flash offset 0x128000 with length 0x200000 to filename flash.bin (use --preloader for brom)
 
 ```
-python mtk ro 0x128000 0x200000 flash.bin
+python mtk.py ro 0x128000 0x200000 flash.bin
 ```
 
 Dump all partitions to directory "out". (use --preloader for brom)
 
 ```
-python mtk rl out
+python mtk.py rl out
 ```
 
 Show gpt (use --preloader for brom)
 
 ```
-python mtk printgpt
+python mtk.py printgpt
 ```
 
 
 Mount the flash as a filesystem
 
 ```
-python mtk fs /mnt/mtk
+python mtk.py fs /mnt/mtk
 ```
 
 ### Write flash
@@ -306,83 +376,83 @@ python mtk fs /mnt/mtk
 Write filename boot.bin to boot partition
 
 ```
-python mtk w boot boot.bin
+python mtk.py w boot boot.bin
 ```
 
 Write filename flash.bin as full flash (currently only works in da mode)
 
 ```
-python mtk wf flash.bin
+python mtk.py wf flash.bin
 ```
 
 Write all files in directory "out" to the flash partitions
 
 ```
-python mtk wl out
+python mtk.py wl out
 ```
 
 write file flash.bin to flash offset 0x128000 with length 0x200000 (use --preloader for brom)
 
 ```
-python mtk wo 0x128000 0x200000 flash.bin
+python mtk.py wo 0x128000 0x200000 flash.bin
 ```
 
 ### Erase flash
 
 Erase boot partition
 ```
-python mtk e boot
+python mtk.py e boot
 ```
 
 Erase boot sectors
 ```
-python mtk es boot [sector count]
+python mtk.py es boot [sector count]
 ```
 
 ### DA commands:
 
 Peek memory
 ```
-python mtk da peek [addr in hex] [length in hex] [optional: -filename filename.bin for reading to file]
+python mtk.py da peek [addr in hex] [length in hex] [optional: -filename filename.bin for reading to file]
 ```
 
 Poke memory
 ```
-python mtk da poke [addr in hex] [data as hexstring or -filename for reading from file]
+python mtk.py da poke [addr in hex] [data as hexstring or -filename for reading from file]
 ```
 
 Read rpmb (Only xflash for now)
 ```
-python mtk da rpmb r [will read to rpmb.bin]
+python mtk.py da rpmb r [will read to rpmb.bin]
 ```
 
 Write rpmb [Currently broken, xflash only]
 ```
-python mtk da rpmb w filename
+python mtk.py da rpmb w filename
 ```
 
 Generate and display rpmb1-3 key
 ```
-python mtk da generatekeys
+python mtk.py da generatekeys
 ```
 
 Unlock / Lock bootloader
 ```
-python mtk da seccfg [lock or unlock]
+python mtk.py da seccfg [lock or unlock]
 ```
 
 ---------------------------------------------------------------------------------------------------------------
 
 ### Bypass SLA, DAA and SBC (using generic_patcher_payload)
 `` 
-python mtk payload
+python mtk.py payload
 `` 
 If you want to use SP Flash tool afterwards, make sure you select "UART" in the settings, not "USB".
 
 ### Dump preloader
 - Device has to be in bootrom mode and preloader has to be intact on the device
 ```
-python mtk dumppreloader [--ptype=["amonet","kamakiri","kamakiri2","hashimoto"]] [--filename=preloader.bin]
+python mtk.py dumppreloader [--ptype=["amonet","kamakiri","kamakiri2","hashimoto"]] [--filename=preloader.bin]
 ```
 
 ### Dump brom
@@ -393,12 +463,12 @@ python mtk dumppreloader [--ptype=["amonet","kamakiri","kamakiri2","hashimoto"]]
   and "hashimoto" (via cqdma)
 
 ```
-python mtk dumpbrom --ptype=["amonet","kamakiri","hashimoto"] [--filename=brom.bin]
+python mtk.py dumpbrom --ptype=["amonet","kamakiri","hashimoto"] [--filename=brom.bin]
 ```
 
 For to dump unknown bootroms, use brute option :
 ```
-python mtk brute
+python mtk.py brute
 ```
 If it's successful, please add an issue over here and append the bootrom in order to add full support.
 
@@ -407,39 +477,39 @@ If it's successful, please add an issue over here and append the bootrom in orde
 ### Crash da in order to enter brom
 
 ```
-python mtk crash [--vid=vid] [--pid=pid] [--interface=interface]
+python mtk.py crash [--vid=vid] [--pid=pid] [--interface=interface]
 ```
 
 ### Read memory using patched preloader
 - Boot in Brom or crash to Brom
 ```
-python mtk peek [addr] [length] --preloader=patched_preloader.bin
+python mtk.py peek [addr] [length] --preloader=patched_preloader.bin
 ```
 
 ### Run custom payload
 
 ```
-python mtk payload --payload=payload.bin [--var1=var1] [--wdt=wdt] [--uartaddr=addr] [--da_addr=addr] [--brom_addr=addr]
+python mtk.py payload --payload=payload.bin [--var1=var1] [--wdt=wdt] [--uartaddr=addr] [--da_addr=addr] [--brom_addr=addr]
 ```
 
 ---------------------------------------------------------------------------------------------------------------
 ## Stage2 usage
-### Run python mtk stage (brom) or mtk plstage (preloader)
+### Run python mtk.py stage (brom) or mtk plstage (preloader)
 
 #### Run stage2 in bootrom
 `` 
-python mtk stage
+python mtk.py stage
 `` 
 
 #### Run stage2 in preloader
 `` 
-python mtk plstage
+python mtk.py plstage
 `` 
 
 #### Run stage2 plstage in bootrom
 - Boot in Brom or crash to Brom
 ```
-python mtk plstage --preloader=preloader.bin
+python mtk.py plstage --preloader=preloader.bin
 ```
 
 ### Use stage2 tool
@@ -447,42 +517,42 @@ python mtk plstage --preloader=preloader.bin
 
 ### Leave stage2 and reboot
 `` 
-python stage2 reboot
+python stage2.py reboot
 `` 
 
 ### Read rpmb in stage2 mode
 `` 
-python stage2 rpmb
+python stage2.py rpmb
 `` 
 
 ### Read preloader in stage2 mode
 `` 
-python stage2 preloader
+python stage2.py preloader
 `` 
 
 ### Read memory as hex data in stage2 mode
 `` 
-python stage2 memread [start addr] [length]
+python stage2.py memread [start addr] [length]
 `` 
 
 ### Read memory to file in stage2 mode
 `` 
-python stage2 memread [start addr] [length] --filename filename.bin
+python stage2.py memread [start addr] [length] --filename filename.bin
 `` 
 
 ### Write hex data to memory in stage2 mode
 `` 
-python stage2 memwrite [start addr] --data [data as hexstring]
+python stage2.py memwrite [start addr] --data [data as hexstring]
 `` 
 
 ### Write memory from file in stage2 mode
 `` 
-python stage2 memwrite [start addr] --filename filename.bin
+python stage2.py memwrite [start addr] --filename filename.bin
 `` 
 
 ### Extract keys
 `` 
-python stage2 keys --mode [sej, dxcc]
+python stage2.py keys --mode [sej, dxcc]
 `` 
 For dxcc, you need to use plstage instead of stage
 
@@ -497,3 +567,4 @@ For dxcc, you need to use plstage instead of stage
 ### Chip details / configs
 - Go to config/brom_config.py
 - Unknown usb vid/pids for autodetection go to config/usb_ids.py
+# [LEARNING_RESOURCES](https://github.com/bkerler/mtkclient/blob/main/learning_resources.md)

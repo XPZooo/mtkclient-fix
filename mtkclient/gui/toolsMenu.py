@@ -1,7 +1,7 @@
 from PySide6.QtCore import Slot, QObject, Signal
 from PySide6.QtWidgets import QTableWidgetItem
 from mtkclient.gui.toolkit import trap_exc_during_debug, asyncThread, FDialog
-from mtkclient.Library.DA.mtk_da_handler import DA_handler
+from mtkclient.Library.DA.mtk_da_handler import DaHandler
 import os
 import sys
 import json
@@ -13,7 +13,7 @@ class UnlockMenu(QObject):
     enableButtonsSignal = Signal()
     disableButtonsSignal = Signal()
 
-    def __init__(self, ui, parent, da_handler: DA_handler, sendToLog):  # def __init__(self, *args, **kwargs):
+    def __init__(self, ui, parent, da_handler: DaHandler, sendToLog):  # def __init__(self, *args, **kwargs):
         super(UnlockMenu, self).__init__(parent)
         self.parent = parent
         self.ui = ui
@@ -52,7 +52,7 @@ class generateKeysMenu(QObject):
     enableButtonsSignal = Signal()
     disableButtonsSignal = Signal()
 
-    def __init__(self, ui, parent, da_handler: DA_handler, sendToLog):  # def __init__(self, *args, **kwargs):
+    def __init__(self, ui, parent, da_handler: DaHandler, sendToLog):  # def __init__(self, *args, **kwargs):
         super(generateKeysMenu, self).__init__(parent)
         self.parent = parent
         self.ui = ui

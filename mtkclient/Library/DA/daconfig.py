@@ -1,13 +1,13 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
-# (c) B.Kerler 2018-2023 GPLv3 License
+# (c) B.Kerler 2018-2024 GPLv3 License
 import logging
 import os
 from struct import unpack
 from mtkclient.Library.utils import LogBase, logsetup
-from mtkclient.config.payloads import pathconfig
-from mtkclient.config.brom_config import damodes
-from mtkclient.Library.utils import structhelper
+from mtkclient.config.payloads import PathConfig
+from mtkclient.config.brom_config import DAmodes
+from mtkclient.Library.utils import Structhelper
 
 
 class Storage:
@@ -33,7 +33,7 @@ class DaStorage:
     MTK_DA_STORAGE_NOR_PARALLEL = 0x22
 
 
-class EMMC_PartitionType:
+class EmmcPartitionType:
     MTK_DA_EMMC_PART_BOOT1 = 1
     MTK_DA_EMMC_PART_BOOT2 = 2
     MTK_DA_EMMC_PART_RPMB = 3
@@ -46,7 +46,7 @@ class EMMC_PartitionType:
     MTK_DA_EMMC_BOOT1_BOOT2 = 10
 
 
-class UFS_PartitionType:
+class UFSPartitionType:
     UFS_LU0 = 0
     UFS_LU1 = 1
     UFS_LU2 = 2
@@ -75,7 +75,7 @@ class NandCellUsage:
     CELL_OCT = 7
 
 
-class entry_region:
+class EntryRegion:
     m_buf = None
     m_len = None
     m_start_addr = None
@@ -83,7 +83,7 @@ class entry_region:
     m_sig_len = None
 
     def __init__(self, data):
-        sh = structhelper(data)
+        sh = Structhelper(data)
         self.m_buf = sh.dword()
         self.m_len = sh.dword()
         self.m_start_addr = sh.dword()
@@ -96,23 +96,38 @@ class entry_region:
 
 
 class DA:
-    def __init__(self, data):
+    v6=False
+    loader=None
+    magic=0
+    hw_code=0
+    hw_sub_code=0
+    hw_version=0
+    sw_version=0
+    pagesize=512
+    entry_region_index=1
+    entry_region_count=0
+    region = []
+
+    def __init__(self, data, old_ldr:bool=False, v6:bool=False):
         self.loader = None
-        sh = structhelper(data)
+        self.v6 = v6
+        sh = Structhelper(data)
         self.magic = sh.short()
         self.hw_code = sh.short()
         self.hw_sub_code = sh.short()
         self.hw_version = sh.short()
-        self.sw_version = sh.short()
-        self.reserved1 = sh.short()
+        if not old_ldr:
+            self.sw_version = sh.short()
+            self.reserved1 = sh.short()
         self.pagesize = sh.short()
         self.reserved3 = sh.short()
         self.entry_region_index = sh.short()
         self.entry_region_count = sh.short()
         self.region = []
         for _ in range(self.entry_region_count):
-            entry_tmp = entry_region(sh.bytes(20))
+            entry_tmp = EntryRegion(sh.bytes(20))
             self.region.append(entry_tmp)
+        self.old_ldr = old_ldr
 
     def setfilename(self, loaderfilename: str):
         self.loader = loaderfilename
@@ -125,9 +140,12 @@ class DA:
 
 class DAconfig(metaclass=LogBase):
     def __init__(self, mtk, loader=None, preloader=None, loglevel=logging.INFO):
-        self.__logger = logsetup(self, self.__logger, loglevel, mtk.config.gui)
+        self.emi = None
+        self.emiver = 0
+        self.__logger, self.info, self.debug, self.warning, self.error = logsetup(self, self.__logger,
+                                                                                  loglevel, mtk.config.gui)
         self.mtk = mtk
-        self.pathconfig = pathconfig()
+        self.pathconfig = PathConfig()
         self.config = self.mtk.config
         self.usbwrite = self.mtk.port.usbwrite
         self.usbread = self.mtk.port.usbread
@@ -182,7 +200,7 @@ class DAconfig(metaclass=LogBase):
         idx = data.find(bldrstring)
         if idx == -1:
             return None
-        elif idx == 0 and self.config.chipconfig.damode == damodes.XFLASH:
+        elif idx == 0 and self.config.chipconfig.damode == DAmodes.XFLASH:
             ver = int(data[idx + len_bldrstring:idx + len_bldrstring + 2].rstrip(b"\x00"))
             return ver, data
         else:
@@ -219,11 +237,17 @@ class DAconfig(metaclass=LogBase):
                 hdr = bootldr.read(0x68)
                 count_da = unpack("<I", bootldr.read(4))[0]
                 v6 = b"MTK_DA_v6" in hdr
+                old_ldr = False
+                bootldr.seek(0x6C+0xD8)
+                if bootldr.read(2) == b"\xDA\xDA":
+                    offset=0xD8
+                    old_ldr = True
+                else:
+                    offset=0xDC
                 for i in range(0, count_da):
-                    bootldr.seek(0x6C + (i * 0xDC))
-                    da = DA(bootldr.read(0xDC))
+                    bootldr.seek(0x6C + (i * offset))
+                    da = DA(bootldr.read(offset),old_ldr, v6)
                     da.setfilename(loader)
-                    da.v6 = v6
                     # if da.hw_code == 0x8127 and "5.1824" not in loader:
                     #    continue
                     if da.hw_code not in dasetup:
@@ -253,6 +277,8 @@ class DAconfig(metaclass=LogBase):
                 if loader.hw_version <= self.config.hwver:
                     if loader.sw_version <= self.config.swver:
                         if self.da_loader is None:
+                            if loader.v6:
+                                self.config.chipconfig.damode = DAmodes.XML
                             self.da_loader = loader
                             self.loader = loader.loader
         if self.da_loader is None and dacode != 0x6261:
@@ -262,10 +288,9 @@ class DAconfig(metaclass=LogBase):
 
 if __name__ == "__main__":
     from mtkclient.Library.mtk_class import Mtk
-    from mtkclient.Library.mtk_main import Mtk_Config
+    from mtkclient.config.mtk_config import MtkConfig
 
-    config = Mtk_Config(loglevel=logging.INFO, gui=None,
-                        guiprogress=None)
+    config = MtkConfig(loglevel=logging.INFO, gui=None, guiprogress=None)
     mtkg = Mtk(config=config)
     dac = DAconfig(mtk=mtkg)
     dac.extract_emi("/home/bjk/Projects/mtkclient_github/preloader_meizu6795_lwt_l1.bin")

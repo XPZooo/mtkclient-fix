@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
-# (c) B.Kerler 2018-2023 GPLv3 License
+# (c) B.Kerler 2018-2024 GPLv3 License
 
 # DXCC = Discretix CryptoCell
 
@@ -11,6 +11,14 @@ from Cryptodome.Util.number import bytes_to_long
 from Cryptodome.Cipher import AES
 from Cryptodome.Util import Counter
 from mtkclient.Library.utils import LogBase, logsetup
+
+Lcs = 0xA
+KceSet = 0xB
+Kce = 0xC                           # CodeEncryptionKey
+SASI_SB_HASH_BOOT_KEY_256B = 2      # 0x10
+SASI_SB_HASH_BOOT_KEY_1_128B = 1    # 0x14
+SASI_SW_VERSION_COUNTER1 = 1        # 0x18
+SASI_SW_VERSION_COUNTER2 = 2        # 0x19
 
 oem_pubk = "DACD8B5FDA8A766FB7BCAA43F0B16915" + \
            "CE7B47714F1395FDEBCF12A2D41155B0" + \
@@ -584,7 +592,7 @@ class DescDirection:
     DESC_DIRECTION_END = INT32_MAX
 
 
-class sep_engine_type:
+class SepEngineType:
     SEP_ENGINE_NULL = 0
     SEP_ENGINE_AES = 1
     SEP_ENGINE_DES = 2
@@ -593,7 +601,7 @@ class sep_engine_type:
     SEP_ENGINE_DOUT = 5
 
 
-class sep_crypto_alg:
+class SepCryptoAlg:
     SEP_CRYPTO_ALG_NULL = 0xFFFFFFFF
     SEP_CRYPTO_ALG_AES = 0
     SEP_CRYPTO_ALG_DES = 1
@@ -608,7 +616,7 @@ class sep_crypto_alg:
     SEP_CRYPTO_ALG_RESERVE32B = INT32_MAX
 
 
-class sep_crypto_direction:
+class SepCryptoDirection:
     SEP_CRYPTO_DIRECTION_NULL = 0xFFFFFFFF
     SEP_CRYPTO_DIRECTION_ENCRYPT = 0
     SEP_CRYPTO_DIRECTION_DECRYPT = 1
@@ -616,7 +624,7 @@ class sep_crypto_direction:
     SEP_CRYPTO_DIRECTION_RESERVE32B = INT32_MAX
 
 
-class sep_cipher_mode:
+class SepCipherMode:
     SEP_CIPHER_NULL_MODE = 0xFFFFFFFF
     SEP_CIPHER_ECB = 0
     SEP_CIPHER_CBC = 1
@@ -632,7 +640,7 @@ class sep_cipher_mode:
     SEP_CIPHER_RESERVE32B = INT32_MAX
 
 
-class sep_hash_mode:
+class SepHashMode:
     SEP_HASH_NULL = 0xFFFFFFFF
     SEP_HASH_SHA1 = 0
     SEP_HASH_SHA256 = 1
@@ -647,7 +655,7 @@ class sep_hash_mode:
     SEP_HASH_RESERVE32B = INT32_MAX
 
 
-class sep_hash_hw_mode:
+class SepHashHwMode:
     SEP_HASH_HW_MD5 = 0
     SEP_HASH_HW_SHA1 = 1
     SEP_HASH_HW_SHA256 = 2
@@ -658,14 +666,14 @@ class sep_hash_hw_mode:
     SEP_HASH_HW_RESERVE32B = INT32_MAX
 
 
-class sep_c2_mode:
+class SepC2Mode:
     SEP_C2_NULL = 0xFFFFFFFF
     SEP_C2_ECB = 0
     SEP_C2_CBC = 1
     SEP_C2_RESERVE32B = INT32_MAX
 
 
-class sep_multi2_mode:
+class SepMulti2Mode:
     SEP_MULTI2_NULL = 0xFFFFFFFF
     SEP_MULTI2_ECB = 0
     SEP_MULTI2_CBC = 1
@@ -673,7 +681,7 @@ class sep_multi2_mode:
     SEP_MULTI2_RESERVE32B = INT32_MAX
 
 
-class sep_crypto_key_type:
+class SepCryptoKeyType:
     SEP_USER_KEY = 0
     SEP_ROOT_KEY = 1
     SEP_PROVISIONING_KEY = 2
@@ -875,129 +883,129 @@ def tovalue(value, bitsize, shift):
     return v << shift
 
 
-def hw_desc_set_cipher_mode(pDesc, cipherMode):
+def hw_desc_set_cipher_mode(p_desc, cipher_mode):
     shift, bitsize = DSCRPTR["DSCRPTR_QUEUE0_WORD4"][1]["CIPHER_MODE"]
-    pDesc[4] |= tovalue(cipherMode, bitsize, shift)
-    return pDesc
+    p_desc[4] |= tovalue(cipher_mode, bitsize, shift)
+    return p_desc
 
 
-def hw_desc_set_cipher_config0(pDesc, cipherConfig):
+def hw_desc_set_cipher_config0(p_desc, cipher_config):
     shift, bitsize = DSCRPTR["DSCRPTR_QUEUE0_WORD4"][1]["CIPHER_CONF0"]
-    pDesc[4] |= tovalue(cipherConfig, bitsize, shift)
-    return pDesc
+    p_desc[4] |= tovalue(cipher_config, bitsize, shift)
+    return p_desc
 
 
-def hw_desc_set_cipher_config1(pDesc, cipherConfig):
+def hw_desc_set_cipher_config1(p_desc, cipher_config):
     shift, bitsize = DSCRPTR["DSCRPTR_QUEUE0_WORD4"][1]["CIPHER_CONF1"]
-    pDesc[4] |= tovalue(cipherConfig, bitsize, shift)
-    return pDesc
+    p_desc[4] |= tovalue(cipher_config, bitsize, shift)
+    return p_desc
 
 
-def hw_desc_set_setup_mode(pDesc, setupMode):
+def hw_desc_set_setup_mode(p_desc, setup_mode):
     shift, bitsize = DSCRPTR["DSCRPTR_QUEUE0_WORD4"][1]["SETUP_OPERATION"]
-    pDesc[4] |= tovalue(setupMode, bitsize, shift)
-    return pDesc
+    p_desc[4] |= tovalue(setup_mode, bitsize, shift)
+    return p_desc
 
 
-def hw_desc_set_flow_mode(pDesc, flowMode):
+def hw_desc_set_flow_mode(p_desc, flow_mode):
     shift, bitsize = DSCRPTR["DSCRPTR_QUEUE0_WORD4"][1]["DATA_FLOW_MODE"]
-    pDesc[4] |= tovalue(flowMode, bitsize, shift)
-    return pDesc
+    p_desc[4] |= tovalue(flow_mode, bitsize, shift)
+    return p_desc
 
 
-def hw_desc_set_dout_sram(pDesc, doutAdr, doutSize):
+def hw_desc_set_dout_sram(p_desc, dout_adr, dout_size):
     v = DSCRPTR["DSCRPTR_QUEUE0_WORD2"]
     shift, bitsize = v[1], v[2]
-    pDesc[2] |= tovalue((doutAdr & 0xFFFFFFFF), bitsize, shift)
+    p_desc[2] |= tovalue((dout_adr & 0xFFFFFFFF), bitsize, shift)
     shift, bitsize = DSCRPTR["DSCRPTR_QUEUE0_WORD3"][1]["DOUT_DMA_MODE"]
-    pDesc[3] |= tovalue(DmaMode.DMA_SRAM, bitsize, shift)
+    p_desc[3] |= tovalue(DmaMode.DMA_SRAM, bitsize, shift)
     shift, bitsize = DSCRPTR["DSCRPTR_QUEUE0_WORD3"][1]["DOUT_SIZE"]
-    pDesc[3] |= tovalue(doutSize, bitsize, shift)
-    return pDesc
+    p_desc[3] |= tovalue(dout_size, bitsize, shift)
+    return p_desc
 
 
-def hw_desc_set_dout_dlli(pDesc, doutAdr, doutSize, axiNs, lastind):
+def hw_desc_set_dout_dlli(p_desc, dout_adr, dout_size, axi_ns, lastind):
     v = DSCRPTR["DSCRPTR_QUEUE0_WORD2"]
     shift, bitsize = v[1], v[2]
-    pDesc[2] |= tovalue((doutAdr & 0xFFFFFFFF), bitsize, shift)
+    p_desc[2] |= tovalue((dout_adr & 0xFFFFFFFF), bitsize, shift)
     shift, bitsize = DSCRPTR["DSCRPTR_QUEUE0_WORD5"][1]["DOUT_ADDR_HIGH"]
-    pDesc[5] |= tovalue((doutAdr >> 32 & 0xFFFFFFFF) << 16, bitsize, shift)
+    p_desc[5] |= tovalue((dout_adr >> 32 & 0xFFFFFFFF) << 16, bitsize, shift)
     shift, bitsize = DSCRPTR["DSCRPTR_QUEUE0_WORD3"][1]["DOUT_DMA_MODE"]
-    pDesc[3] |= tovalue(DmaMode.DMA_DLLI, bitsize, shift)
+    p_desc[3] |= tovalue(DmaMode.DMA_DLLI, bitsize, shift)
     shift, bitsize = DSCRPTR["DSCRPTR_QUEUE0_WORD3"][1]["DOUT_SIZE"]
-    pDesc[3] |= tovalue(doutSize, bitsize, shift)
+    p_desc[3] |= tovalue(dout_size, bitsize, shift)
     shift, bitsize = DSCRPTR["DSCRPTR_QUEUE0_WORD3"][1]["DOUT_LAST_IND"]
-    pDesc[3] |= tovalue(lastind, bitsize, shift)
+    p_desc[3] |= tovalue(lastind, bitsize, shift)
     shift, bitsize = DSCRPTR["DSCRPTR_QUEUE0_WORD3"][1]["NS_BIT"]
-    pDesc[3] |= tovalue(lastind, bitsize, shift)
-    return pDesc
+    p_desc[3] |= tovalue(lastind, bitsize, shift)
+    return p_desc
 
 
-def hw_desc_set_key_size_aes(pDesc, keySize):
+def hw_desc_set_key_size_aes(p_desc, key_size):
     shift, bitsize = DSCRPTR["DSCRPTR_QUEUE0_WORD4"][1]["KEY_SIZE"]
-    pDesc[4] |= tovalue(((keySize >> 3) - 2), bitsize, shift)
-    return pDesc
+    p_desc[4] |= tovalue(((key_size >> 3) - 2), bitsize, shift)
+    return p_desc
 
 
-def hw_desc_set_din_sram(pDesc, dinAdr, dinSize):
+def hw_desc_set_din_sram(p_desc, din_adr, din_size):
     v = DSCRPTR["DSCRPTR_QUEUE0_WORD0"]
     shift, bitsize = v[1], v[2]
-    pDesc[0] |= tovalue(dinAdr & 0xFFFFFFFF, bitsize, shift)
+    p_desc[0] |= tovalue(din_adr & 0xFFFFFFFF, bitsize, shift)
     shift, bitsize = DSCRPTR["DSCRPTR_QUEUE0_WORD1"][1]["DIN_DMA_MODE"]
-    pDesc[1] |= tovalue(DmaMode.DMA_SRAM, bitsize, shift)
+    p_desc[1] |= tovalue(DmaMode.DMA_SRAM, bitsize, shift)
     shift, bitsize = DSCRPTR["DSCRPTR_QUEUE0_WORD1"][1]["DIN_SIZE"]
-    pDesc[1] |= tovalue(dinSize, bitsize, shift)
-    return pDesc
+    p_desc[1] |= tovalue(din_size, bitsize, shift)
+    return p_desc
 
 
-def hw_desc_set_din_const(pDesc, val, dinSize):
+def hw_desc_set_din_const(p_desc, val, din_size):
     v = DSCRPTR["DSCRPTR_QUEUE0_WORD0"]
     shift, bitsize = v[1], v[2]
-    pDesc[0] |= tovalue(val & 0xFFFFFFFF, bitsize, shift)
+    p_desc[0] |= tovalue(val & 0xFFFFFFFF, bitsize, shift)
     shift, bitsize = DSCRPTR["DSCRPTR_QUEUE0_WORD1"][1]["DIN_CONST_VALUE"]
-    pDesc[1] |= tovalue(1, bitsize, shift)
+    p_desc[1] |= tovalue(1, bitsize, shift)
     shift, bitsize = DSCRPTR["DSCRPTR_QUEUE0_WORD1"][1]["DIN_DMA_MODE"]
-    pDesc[1] |= tovalue(DmaMode.DMA_SRAM, bitsize, shift)
+    p_desc[1] |= tovalue(DmaMode.DMA_SRAM, bitsize, shift)
     shift, bitsize = DSCRPTR["DSCRPTR_QUEUE0_WORD1"][1]["DIN_SIZE"]
-    pDesc[1] |= tovalue(dinSize, bitsize, shift)
-    return pDesc
+    p_desc[1] |= tovalue(din_size, bitsize, shift)
+    return p_desc
 
 
-def hw_desc_set_cipher_do(pDesc, cipherDo):
+def hw_desc_set_cipher_do(p_desc, cipher_do):
     shift, bitsize = DSCRPTR["DSCRPTR_QUEUE0_WORD4"][1]["CIPHER_DO"]
-    pDesc[4] |= tovalue(cipherDo, bitsize, shift)
-    return pDesc
+    p_desc[4] |= tovalue(cipher_do, bitsize, shift)
+    return p_desc
 
 
-def hw_desc_set_din_nodma(pDesc, dinAdr, dinSize):
+def hw_desc_set_din_nodma(p_desc, din_adr, din_size):
     v = DSCRPTR["DSCRPTR_QUEUE0_WORD0"]
     shift, bitsize = v[1], v[2]
-    pDesc[0] |= tovalue(dinAdr & 0xFFFFFFFF, bitsize, shift)
+    p_desc[0] |= tovalue(din_adr & 0xFFFFFFFF, bitsize, shift)
     shift, bitsize = DSCRPTR["DSCRPTR_QUEUE0_WORD1"][1]["DIN_DMA_MODE"]
-    pDesc[1] |= tovalue(DmaMode.NO_DMA, bitsize, shift)
+    p_desc[1] |= tovalue(DmaMode.NO_DMA, bitsize, shift)
     shift, bitsize = DSCRPTR["DSCRPTR_QUEUE0_WORD1"][1]["DIN_SIZE"]
-    pDesc[1] |= tovalue(dinSize, bitsize, shift)
-    return pDesc
+    p_desc[1] |= tovalue(din_size, bitsize, shift)
+    return p_desc
 
 
-def hw_desc_set_din_type(pDesc, dmaMode, dinAdr, dinSize, axiId, axiNs):
+def hw_desc_set_din_type(p_desc, dma_mode, din_adr, din_size, axi_id, axi_ns):
     v = DSCRPTR["DSCRPTR_QUEUE0_WORD0"]
     shift, bitsize = v[1], v[2]
-    pDesc[0] |= tovalue(dinAdr & 0xFFFFFFFF, bitsize, shift)
+    p_desc[0] |= tovalue(din_adr & 0xFFFFFFFF, bitsize, shift)
     shift, bitsize = DSCRPTR["DSCRPTR_QUEUE0_WORD5"][1]["DIN_ADDR_HIGH"]
-    pDesc[5] |= tovalue(dinAdr >> 32 & 0xFFFF, bitsize, shift)
+    p_desc[5] |= tovalue(din_adr >> 32 & 0xFFFF, bitsize, shift)
     shift, bitsize = DSCRPTR["DSCRPTR_QUEUE0_WORD1"][1]["DIN_DMA_MODE"]
-    pDesc[1] |= tovalue(dmaMode, bitsize, shift)
+    p_desc[1] |= tovalue(dma_mode, bitsize, shift)
     shift, bitsize = DSCRPTR["DSCRPTR_QUEUE0_WORD1"][1]["DIN_SIZE"]
-    pDesc[1] |= tovalue(dinSize, bitsize, shift)
+    p_desc[1] |= tovalue(din_size, bitsize, shift)
     shift, bitsize = DSCRPTR["DSCRPTR_QUEUE0_WORD1"][1]["DIN_VIRTUAL_HOST"]
-    pDesc[1] |= tovalue(axiId, bitsize, shift)
+    p_desc[1] |= tovalue(axi_id, bitsize, shift)
     shift, bitsize = DSCRPTR["DSCRPTR_QUEUE0_WORD1"][1]["NS_BIT"]
-    pDesc[1] |= tovalue(axiNs, bitsize, shift)
-    return pDesc
+    p_desc[1] |= tovalue(axi_ns, bitsize, shift)
+    return p_desc
 
 
-class dxcc_reg:
+class DxccReg:
     def __init__(self, setup):
         self.dxcc_base = setup.dxcc_base
         self.read32 = setup.read32
@@ -1005,24 +1013,24 @@ class dxcc_reg:
 
     def __setattr__(self, key, value):
         if key in ("sej_base", "read32", "write32", "regval"):
-            return super(dxcc_reg, self).__setattr__(key, value)
+            return super(DxccReg, self).__setattr__(key, value)
         if key in regval:
             addr = regval[key] + self.sej_base
             return self.write32(addr, value)
         else:
-            return super(dxcc_reg, self).__setattr__(key, value)
+            return super(DxccReg, self).__setattr__(key, value)
 
     def __getattribute__(self, item):
         if item in ("sej_base", "read32", "write32", "regval"):
-            return super(dxcc_reg, self).__getattribute__(item)
+            return super(DxccReg, self).__getattribute__(item)
         if item in regval:
             addr = regval[item] + self.sej_base
             return self.read32(addr)
         else:
-            return super(dxcc_reg, self).__getattribute__(item)
+            return super(DxccReg, self).__getattribute__(item)
 
 
-class dxcc(metaclass=LogBase):
+class Dxcc(metaclass=LogBase):
     DX_HOST_IRR = 0xA00
     DX_HOST_ICR = 0xA08  # DX_CC = (HOST_RGF, HOST_ICR)
     DX_DSCRPTR_QUEUE0_WORD0 = 0xE80
@@ -1038,10 +1046,10 @@ class dxcc(metaclass=LogBase):
     DX_HOST_SEP_HOST_GPR3 = 0xA9C
     DX_HOST_SEP_HOST_GPR4 = 0xAA0
 
-    def SB_HalClearInterruptBit(self):
+    def sb_hal_clear_interrupt_bit(self):
         self.write32(self.dxcc_base + self.DX_HOST_ICR, 4)
 
-    def SB_CryptoWait(self):
+    def sb_crypto_wait(self):
         while True:
             value = self.read32(self.dxcc_base + self.DX_HOST_IRR)
             if value != 0:
@@ -1067,7 +1075,7 @@ class dxcc(metaclass=LogBase):
         self.write32(self.dxcc_base + self.DX_DSCRPTR_QUEUE0_WORD5, data[5])
 
     def __init__(self, setup, loglevel=logging.INFO, gui: bool = False):
-        self.__logger = logsetup(self, self.__logger, loglevel, gui)
+        self.__logger, self.info, self.debug, self.warning, self.error = logsetup(self, self.__logger, loglevel, gui)
         self.hwcode = setup.hwcode
         self.dxcc_base = setup.dxcc_base
         self.read32 = setup.read32
@@ -1075,7 +1083,7 @@ class dxcc(metaclass=LogBase):
         self.writemem = setup.writemem
         self.da_payload_addr = setup.da_payload_addr
 
-        self.reg = dxcc_reg(setup)
+        self.reg = DxccReg(setup)
 
     def tzcc_clk(self, value):
         if value:
@@ -1091,7 +1099,7 @@ class dxcc(metaclass=LogBase):
         for ctr in range(0, key_sz // 16):
             itrustee = b"TrustedCorekeymaster" + b"\x07" * 0x10 + appid
             seed = itrustee + pack("<B", ctr)
-            paddr = self.SBROM_AesCmac(1, 0x0, seed, 0x0, len(seed), dstaddr)
+            paddr = self.sbrom_aes_cmac(1, 0x0, seed, 0x0, len(seed), dstaddr)
             for field in self.read32(paddr, 4):
                 fdekey += pack("<I", field)
         self.tzcc_clk(0)
@@ -1110,9 +1118,21 @@ class dxcc(metaclass=LogBase):
             keylength = 0x10
         self.tzcc_clk(1)
         dstaddr = self.da_payload_addr - 0x300
-        rpmbkey = self.SBROM_KeyDerivation(1, rpmb_ikey, rpmb_salt, keylength, dstaddr)
+        rpmbkey = self.sbrom_key_derivation(1, rpmb_ikey, rpmb_salt, keylength, dstaddr)
         self.tzcc_clk(0)
         return rpmbkey
+
+    def sasi_bsv_socid_compute(self):
+        key = bytes.fromhex("49")
+        salt = b"\x00"*32
+        keylength = 0x10
+        self.tzcc_clk(1)
+        dstaddr = self.da_payload_addr - 0x300
+        pubkey = self.sasi_bsv_pubkey_hash_get(SASI_SB_HASH_BOOT_KEY_256B)
+        derivedkey = self.sbrom_key_derivation(1, key, salt, keylength, dstaddr)
+        hash = hashlib.sha256(pubkey+derivedkey).digest()
+        self.tzcc_clk(0)
+        return hash
 
     def generate_rpmb_mitee(self):
         rpmb_ikey = bytes.fromhex("AD1AC6B4BDF4EDB7")
@@ -1120,41 +1140,124 @@ class dxcc(metaclass=LogBase):
         keylength = 0x10
         self.tzcc_clk(1)
         dstaddr = self.da_payload_addr - 0x300
-        rpmbkey = self.SBROM_KeyDerivation(1, rpmb_ikey, rpmb_salt, keylength, dstaddr)
+        rpmbkey = self.sbrom_key_derivation(1, rpmb_ikey, rpmb_salt, keylength, dstaddr)
         self.tzcc_clk(0)
         return rpmbkey
 
-    def salt_func(self, value):
+    def sasi_bsv_otp_word_read(self, otpAddress):
+        if otpAddress>0x24:
+            return None
         while True:
             val = self.read32(self.dxcc_base + (0x2AF * 4)) & 1
             if val != 0:
                 break
-        self.write32(self.dxcc_base + (0x2A9 * 4), (4 * value) | 0x10000)
+        self.write32(self.dxcc_base + (0x2A9 * 4), (4 * otpAddress) | 0x10000)
         while True:
-            val = self.read32(self.dxcc_base + (0x2AD * 4)) << 31
+            val = self.read32(self.dxcc_base + (0x2AD * 4)) & 1
             if val != 0:
                 break
         res = self.read32(self.dxcc_base + (0x2AB * 4))
         return res
+
+    def sasi_bsv_lcs_get(self):
+        while True:
+            val = self.read32(self.dxcc_base + (0x2AF * 4)) & 1
+            if val != 0:
+                break
+        lcs = self.read32(self.dxcc_base + (0x2B5 * 4))
+        if lcs != 1:
+            if lcs != 5:
+                return 0
+            if self.read32(self.dxcc_base + (0x2B5 * 4)) & 0x100 != 0:
+                return 0xB000002
+            otp_word = self.sasi_bsv_otp_word_read(0xA)
+            if self.read32(self.dxcc_base + (0x2B5 * 4)) & 0x100 != 0:
+                if otp_word & 0xF0000 != 0x30000:
+                    return 0xB000080
+        if self.read32(self.dxcc_base + (0x2B5 * 4)) & 0x200 == 0:
+            return 0
+        return 0xB000003
+
+    def sasi_bsv_pub_key_hash_get(self, keyindex=SASI_SB_HASH_BOOT_KEY_256B):
+        if keyindex == SASI_SB_HASH_BOOT_KEY_256B:
+            start = 0x10
+            length = 0x8
+        elif keyindex == SASI_SB_HASH_BOOT_KEY_1_128B:
+            start = 0x14
+            length = 0x4
+        else:
+            return None
+        hashval = bytearray()
+        for idx in range(start,start+length,0x1):
+            hashval.extend(int.to_bytes(self.sasi_bsv_otp_word_read(idx),4,'little'))
+        return hashval
+
+    def sbrom_decrypt_kcst(self):
+        pdesc = hw_desc_init()
+        pdesc[0] = 0
+        pdesc[1] = 0x3FFC000
+        pdesc[2] = 0
+        pdesc[3] = 0
+        pdesc[4] = 0
+        pdesc[5] = 0
+        self.sasi_sb_adddescsequence(pdesc)
+        self.sb_hal_wait_desc_completion()
+
+    def sbrom_aeslockenginekey(self):
+        pdesc = hw_desc_init()
+        pdesc[0] = 0
+        pdesc[1] = 0x8000081
+        pdesc[2] = 0
+        pdesc[3] = 0
+        pdesc[4] = 0x4801C20
+        pdesc[5] = 0
+        self.sasi_sb_adddescsequence(pdesc)
+        self.sb_hal_wait_desc_completion()
+
+    def sasi_bsv_customer_key_decrypt(self):
+        plat_key = b"KEY PLAT"
+        dstaddr = self.da_payload_addr - 0x300
+        salt = self.sasi_bsv_pub_key_hash_get(keyindex=SASI_SB_HASH_BOOT_KEY_256B)
+        platkey = self.sbrom_key_derivation(HwCryptoKey.PLATFORM_KEY, plat_key, salt, 0x10, dstaddr)
+        while True:
+            val = self.read32(self.dxcc_base + 0xAF4) & 1
+            if val != 0:
+                break
+        self.sbrom_decrypt_kcst()
+        while True:
+            val = self.read32(self.dxcc_base + 0xAF0) & 1
+            if val != 0:
+                break
+        self.write32(self.dxcc_base + 0xAC0, 0)
+        self.write32(self.dxcc_base + 0xAC4, 0)
+        self.write32(self.dxcc_base + 0xAC8, 0)
+        self.write32(self.dxcc_base + 0xACC, 0)
+        self.sbrom_aeslockenginekey()
+
+    def sasi_bsv_security_disable(self):
+        lcs = self.sasi_bsv_lcs_get()
+        if lcs == 7:
+            return
+        self.write32(self.dxcc_base + 0xAC0, 0)
+        self.write32(self.dxcc_base + 0xAC4, 0)
+        self.write32(self.dxcc_base + 0xAC8, 0)
+        self.write32(self.dxcc_base + 0xACC, 0)
+        self.write32(self.dxcc_base + 0xAD8, 1)
 
     def generate_provision_key(self):
         plat_key = b"KEY PLAT"
         prov_key = b"PROVISION KEY"
         self.tzcc_clk(1)
         dstaddr = self.da_payload_addr - 0x300
-
-        salt = hashlib.sha256(bytes.fromhex(oem_pubk)).digest()
-        """
-        salt = bytearray(b"\x00"*0x20)
-        for i in range(8):
-            salt[i*4]=self.salt_func(0x10+i)
-        """
-        provkey = self.SBROM_KeyDerivation(HwCryptoKey.PROVISIONING_KEY, plat_key, salt, 0x10, dstaddr)
+        lcs = self.sasi_bsv_lcs_get()
+        #salt = hashlib.sha256(bytes.fromhex(oem_pubk)).digest()
+        salt = self.sasi_bsv_pub_key_hash_get(keyindex=SASI_SB_HASH_BOOT_KEY_256B)
+        platkey = self.sbrom_key_derivation(HwCryptoKey.PLATFORM_KEY, plat_key, salt, 0x10, dstaddr)
         while True:
             val = self.read32(self.dxcc_base + 0xAF4) & 1
             if val != 0:
                 break
-        platkey = self.SBROM_KeyDerivation(HwCryptoKey.PLATFORM_KEY, prov_key, salt, 0x10, dstaddr)
+        provkey = self.sbrom_key_derivation(HwCryptoKey.PROVISIONING_KEY, prov_key, salt, 0x10, dstaddr)
         self.write32(self.dxcc_base + 0xAC0, 0)
         self.write32(self.dxcc_base + 0xAC4, 0)
         self.write32(self.dxcc_base + 0xAC8, 0)
@@ -1168,22 +1271,22 @@ class dxcc(metaclass=LogBase):
         pdesc[5] = 0
         self.sasi_sb_adddescsequence(pdesc)
         dstaddr = self.da_payload_addr - 0x300
-        self.SB_HalWaitDescCompletion()
+        self.sb_hal_wait_desc_completion()
         # data=self.read32(0x200D90)
         self.tzcc_clk(0)
         return platkey, provkey
 
     def generate_sha256(self, data):
         dstaddr = self.da_payload_addr - 0x300
-        self.sbrom_sha256(buffer=data, destaddr=dstaddr)
+        self.sbrom_sha256(_buffer=data, destaddr=dstaddr)
         result = bytearray()
         for field in self.read32(dstaddr, 8):
             result.extend(pack("<I", field))
         return result
 
-    def SBROM_KeyDerivation(self, aeskeytype, label, salt, requestedlen, destaddr):
+    def sbrom_key_derivation(self, aeskeytype, label, salt, requestedlen, destaddr):
         result = bytearray()
-        if aeskeytype - 1 > 4 or (1 << (aeskeytype - 1) & 0x17) == 0:
+        if aeskeytype > HwCryptoKey.PLATFORM_KEY or (1 << (aeskeytype - 1) & 0x17) == 0:
             return 0xF2000002
         if requestedlen > 0xFF or (requestedlen << 28) & 0xFFFFFFFF:
             return 0xF2000003
@@ -1192,36 +1295,36 @@ class dxcc(metaclass=LogBase):
         bufferlen = len(salt) + 3 + len(label)
         iterlength = (requestedlen + 0xF) >> 4
         for i in range(0, iterlength):
-            buffer = pack("<B", i + 1) + label + b"\x00" + salt + pack("<B", (8 * requestedlen) & 0xFF)
-            dstaddr = self.SBROM_AesCmac(aeskeytype, 0x0, buffer[:bufferlen], 0, bufferlen, destaddr)
+            _buffer = pack("<B", i + 1) + label + b"\x00" + salt + pack("<B", (8 * requestedlen) & 0xFF)
+            dstaddr = self.sbrom_aes_cmac(aeskeytype, 0x0, _buffer[:bufferlen], 0, bufferlen, destaddr)
             if dstaddr != 0:
                 for field in self.read32(dstaddr, 4):
                     result.extend(pack("<I", field))
         return result
 
-    def SBROM_AesCmac(self, aesKeyType, InternalKey, DataIn, dmaMode, bufferlen, destaddr):
-        sramAddr = destaddr
-        ivSramAddr = sramAddr
-        inputSramAddr = ivSramAddr + AES_IV_COUNTER_SIZE_IN_BYTES
-        blockSize = len(DataIn) // 0x20 * 0x20
-        outputSramAddr = inputSramAddr + blockSize
-        keySramAddr = outputSramAddr + blockSize
-        pInternalKey = keySramAddr
-        if InternalKey != 0:
-            self.writemem(keySramAddr, InternalKey)
-        if dmaMode != 0:
-            dmaMode = dmaMode
-        self.writemem(inputSramAddr, DataIn[:bufferlen])
-        if self.SBROM_AesCmacDriver(aesKeyType, pInternalKey, inputSramAddr, dmaMode, bufferlen, sramAddr):
-            return sramAddr
+    def sbrom_aes_cmac(self, aes_key_type, internal_key, data_in, dma_mode, bufferlen, destaddr):
+        sram_addr = destaddr
+        iv_sram_addr = sram_addr
+        input_sram_addr = iv_sram_addr + AES_IV_COUNTER_SIZE_IN_BYTES
+        block_size = len(data_in) // 0x20 * 0x20
+        output_sram_addr = input_sram_addr + block_size
+        key_sram_addr = output_sram_addr + block_size
+        p_internal_key = key_sram_addr
+        if internal_key != 0:
+            self.writemem(key_sram_addr, internal_key)
+        if dma_mode != 0:
+            dma_mode = dma_mode
+        self.writemem(input_sram_addr, data_in[:bufferlen])
+        if self.sbrom_aes_cmac_driver(aes_key_type, p_internal_key, input_sram_addr, dma_mode, bufferlen, sram_addr):
+            return sram_addr
         return 0
 
-    def SB_HalInit(self):
-        return self.SB_HalClearInterruptBit()
+    def sb_hal_init(self):
+        return self.sb_hal_clear_interrupt_bit()
 
-    def SB_HalWaitDescCompletion(self, destptr=0):
+    def sb_hal_wait_desc_completion(self, destptr=0):
         data = []
-        self.SB_HalClearInterruptBit()
+        self.sb_hal_clear_interrupt_bit()
         val = self.sasi_paldmamap(0)
         data.append(0x0)  # 0
         data.append(0x8000011)  # 1 #DIN_DMA|DOUT_DMA|DIN_CONST
@@ -1231,35 +1334,35 @@ class dxcc(metaclass=LogBase):
         data.append((destptr >> 32) << 16)  # 5
         self.sasi_sb_adddescsequence(data)
         while True:
-            if self.SB_CryptoWait() & 4 != 0:
+            if self.sb_crypto_wait() & 4 != 0:
                 break
         while True:
             value = self.read32(self.dxcc_base + 0xBA0)
             if value != 0:
                 break
         if value == 1:
-            self.SB_HalClearInterruptBit()
+            self.sb_hal_clear_interrupt_bit()
             self.sasi_paldmaunmap(val)
             return 0
         else:
             return 0xF6000001
 
-    def SBROM_AesCmacDriver(self, aesKeyType, pInternalKey, pDataIn, dmaMode, blockSize, pDataOut):
-        ivSramAddr = 0
-        if aesKeyType == HwCryptoKey.ROOT_KEY:
+    def sbrom_aes_cmac_driver(self, aes_key_type, p_internal_key, p_data_in, dma_mode, block_size, p_data_out):
+        iv_sram_addr = 0
+        if aes_key_type == HwCryptoKey.ROOT_KEY:
             if self.read32(self.dxcc_base + self.DX_HOST_SEP_HOST_GPR4) & 2 != 0:
-                keySizeInBytes = 0x20  # SEP_AES_256_BIT_KEY_SIZE
+                key_size_in_bytes = 0x20  # SEP_AES_256_BIT_KEY_SIZE
             else:
-                keySizeInBytes = 0x10  # SEP_AES_128_BIT_KEY_SIZE
+                key_size_in_bytes = 0x10  # SEP_AES_128_BIT_KEY_SIZE
         else:
-            keySizeInBytes = 0x10  # SEP_AES_128_BIT_KEY_SIZE
-        self.SB_HalInit()
+            key_size_in_bytes = 0x10  # SEP_AES_128_BIT_KEY_SIZE
+        self.sb_hal_init()
 
         pdesc = hw_desc_init()
-        pdesc = hw_desc_set_cipher_mode(pdesc, sep_cipher_mode.SEP_CIPHER_CMAC)  # desc[4]=0x1C00
+        pdesc = hw_desc_set_cipher_mode(pdesc, SepCipherMode.SEP_CIPHER_CMAC)  # desc[4]=0x1C00
         pdesc = hw_desc_set_cipher_config0(pdesc, DescDirection.DESC_DIRECTION_ENCRYPT_ENCRYPT)
-        pdesc = hw_desc_set_key_size_aes(pdesc, keySizeInBytes)  # desc[4]=0x801C00
-        pdesc = hw_desc_set_din_sram(pdesc, ivSramAddr, AES_IV_COUNTER_SIZE_IN_BYTES)
+        pdesc = hw_desc_set_key_size_aes(pdesc, key_size_in_bytes)  # desc[4]=0x801C00
+        pdesc = hw_desc_set_din_sram(pdesc, iv_sram_addr, AES_IV_COUNTER_SIZE_IN_BYTES)
         pdesc = hw_desc_set_din_const(pdesc, 0, AES_IV_COUNTER_SIZE_IN_BYTES)  # desc[1]=0x8000041
         pdesc = hw_desc_set_flow_mode(pdesc, FlowMode.S_DIN_to_AES)  # desc[4]=0x801C20
         pdesc = hw_desc_set_setup_mode(pdesc, SetupOp.SETUP_LOAD_STATE0)  # desc[4]=0x1801C20
@@ -1268,43 +1371,43 @@ class dxcc(metaclass=LogBase):
 
         # Load key
         mdesc = hw_desc_init()
-        if aesKeyType == HwCryptoKey.USER_KEY:
-            keySramAddr = pInternalKey
-            mdesc = hw_desc_set_din_sram(mdesc, keySramAddr, AES_Key128Bits_SIZE_IN_BYTES)
-        mdesc = hw_desc_set_cipher_do(mdesc, aesKeyType)  # desc[4]=0x8000
-        mdesc = hw_desc_set_cipher_mode(mdesc, sep_cipher_mode.SEP_CIPHER_CMAC)  # desc[4]=0x9C00
+        if aes_key_type == HwCryptoKey.USER_KEY:
+            key_sram_addr = p_internal_key
+            mdesc = hw_desc_set_din_sram(mdesc, key_sram_addr, AES_Key128Bits_SIZE_IN_BYTES)
+        mdesc = hw_desc_set_cipher_do(mdesc, aes_key_type)  # desc[4]=0x8000
+        mdesc = hw_desc_set_cipher_mode(mdesc, SepCipherMode.SEP_CIPHER_CMAC)  # desc[4]=0x9C00
         mdesc = hw_desc_set_cipher_config0(mdesc, DescDirection.DESC_DIRECTION_ENCRYPT_ENCRYPT)
-        mdesc = hw_desc_set_key_size_aes(mdesc, keySizeInBytes)  # desc[4]=0x809C00
+        mdesc = hw_desc_set_key_size_aes(mdesc, key_size_in_bytes)  # desc[4]=0x809C00
         mdesc = hw_desc_set_flow_mode(mdesc, FlowMode.S_DIN_to_AES)  # desc[4]=0x809C20
         mdesc = hw_desc_set_setup_mode(mdesc, SetupOp.SETUP_LOAD_KEY0)  # desc[4]=0x4809C20
-        mdesc[4] |= ((aesKeyType >> 2) & 3) << 20
+        mdesc[4] |= ((aes_key_type >> 2) & 3) << 20
         self.sasi_sb_adddescsequence(mdesc)
 
         # Process input data
         rdesc = hw_desc_init()
-        if dmaMode == DmaMode.DMA_SRAM:
-            rdesc = hw_desc_set_din_sram(rdesc, pDataIn, blockSize)
+        if dma_mode == DmaMode.DMA_SRAM:
+            rdesc = hw_desc_set_din_sram(rdesc, p_data_in, block_size)
         else:
-            rdesc = hw_desc_set_din_type(rdesc, DmaMode.DMA_DLLI, pDataIn, blockSize, SB_AXI_ID,
+            rdesc = hw_desc_set_din_type(rdesc, DmaMode.DMA_DLLI, p_data_in, block_size, SB_AXI_ID,
                                          AXI_SECURE)  # desc[1]=0x3E, desc[0]=0x200E18
         rdesc = hw_desc_set_flow_mode(rdesc, FlowMode.DIN_AES_DOUT)  # desc[4]=1
         self.sasi_sb_adddescsequence(rdesc)
 
-        if aesKeyType != HwCryptoKey.PROVISIONING_KEY:
+        if aes_key_type != HwCryptoKey.PROVISIONING_KEY:
             xdesc = hw_desc_init()
-            xdesc = hw_desc_set_cipher_mode(xdesc, sep_cipher_mode.SEP_CIPHER_CMAC)  # desc[4]=0x1C00
+            xdesc = hw_desc_set_cipher_mode(xdesc, SepCipherMode.SEP_CIPHER_CMAC)  # desc[4]=0x1C00
             xdesc = hw_desc_set_cipher_config0(xdesc, DescDirection.DESC_DIRECTION_ENCRYPT_ENCRYPT)
             xdesc = hw_desc_set_setup_mode(xdesc, SetupOp.SETUP_WRITE_STATE0)  # desc[4]=0x8001C00
             xdesc = hw_desc_set_flow_mode(xdesc, FlowMode.S_AES_to_DOUT)  # desc[4]=0x8001C26
-            if dmaMode == DmaMode.DMA_SRAM:
-                xdesc = hw_desc_set_dout_sram(xdesc, pDataOut, AES_BLOCK_SIZE_IN_BYTES)
+            if dma_mode == DmaMode.DMA_SRAM:
+                xdesc = hw_desc_set_dout_sram(xdesc, p_data_out, AES_BLOCK_SIZE_IN_BYTES)
             else:
-                xdesc = hw_desc_set_dout_dlli(xdesc, pDataOut, AES_BLOCK_SIZE_IN_BYTES, SB_AXI_ID,
+                xdesc = hw_desc_set_dout_dlli(xdesc, p_data_out, AES_BLOCK_SIZE_IN_BYTES, SB_AXI_ID,
                                               0)  # desc[2]=0x200E08, desc[3]=0x42
             # xdesc = hw_desc_set_din_sram(xdesc, 0, 0)
             xdesc = hw_desc_set_din_nodma(xdesc, 0, 0)
             self.sasi_sb_adddescsequence(xdesc)
-        return self.SB_HalWaitDescCompletion() == 0
+        return self.sb_hal_wait_desc_completion() == 0
 
     @staticmethod
     def mtee_decrypt(data):
@@ -1319,16 +1422,16 @@ class dxcc(metaclass=LogBase):
         ctr = Counter.new(128, initial_value=bytes_to_long(iv))
         return AES.new(key=key, counter=ctr, mode=AES.MODE_CTR).decrypt(data)
 
-    def sbrom_sha256(self, buffer, destaddr):  # TZCC_SHA256_Init
+    def sbrom_sha256(self, _buffer, destaddr):  # TZCC_SHA256_Init
         dataptr = destaddr + 0x40
         ivptr = destaddr + 0x20
         outptr = destaddr
         self.writemem(0x1000108C, pack("<I", 0x18000000))
         iv = bytes.fromhex("19CDE05BABD9831F8C68059B7F520E513AF54FA572F36E3C85AE67BB67E6096A")
         self.writemem(ivptr, iv)
-        self.writemem(dataptr, buffer)
+        self.writemem(dataptr, _buffer)
         self.sbrom_cryptoinitdriver(aesivptr=ivptr, cryptodrivermode=0)
-        self.sbrom_cryptoupdate(inputptr=dataptr, outputptr=outptr, blockSize=len(buffer), islastblock=1,
+        self.sbrom_cryptoupdate(inputptr=dataptr, outputptr=outptr, block_size=len(_buffer), islastblock=1,
                                 cryptodrivermode=0, waitforcrypto=0)
         self.sbrom_cryptofinishdriver(outptr)
         self.writemem(0x10001088, pack("<I", 0x8000000))
@@ -1345,7 +1448,7 @@ class dxcc(metaclass=LogBase):
             pdesc = hw_desc_init()
             pdesc = hw_desc_set_din_type(pdesc, DmaMode.DMA_DLLI, aesivptr, 0x20, SB_AXI_ID, AXI_SECURE)
             pdesc = hw_desc_set_flow_mode(pdesc, FlowMode.S_DIN_to_HASH)
-            pdesc = hw_desc_set_cipher_mode(pdesc, sep_hash_hw_mode.SEP_HASH_HW_SHA256)
+            pdesc = hw_desc_set_cipher_mode(pdesc, SepHashHwMode.SEP_HASH_HW_SHA256)
             pdesc = hw_desc_set_setup_mode(pdesc, SetupOp.SETUP_LOAD_STATE0)
             self.sasi_sb_adddescsequence(pdesc)
             # 0=0
@@ -1356,13 +1459,13 @@ class dxcc(metaclass=LogBase):
             # 5=0
             tdesc = hw_desc_init()
             tdesc = hw_desc_set_flow_mode(tdesc, FlowMode.S_DIN_to_HASH)
-            tdesc = hw_desc_set_cipher_mode(tdesc, sep_hash_hw_mode.SEP_HASH_HW_SHA256)
+            tdesc = hw_desc_set_cipher_mode(tdesc, SepHashHwMode.SEP_HASH_HW_SHA256)
             tdesc = hw_desc_set_setup_mode(tdesc, SetupOp.SETUP_LOAD_KEY0)
             tdesc = hw_desc_set_din_const(tdesc, 0, 0x10)
             self.sasi_sb_adddescsequence(tdesc)
         if cryptodrivermode >= 1:
             mdesc = hw_desc_init()
-            mdesc = hw_desc_set_cipher_mode(mdesc, sep_cipher_mode.SEP_CIPHER_CTR)
+            mdesc = hw_desc_set_cipher_mode(mdesc, SepCipherMode.SEP_CIPHER_CTR)
             mdesc = hw_desc_set_setup_mode(mdesc, SetupOp.SETUP_LOAD_STATE1)
             mdesc = hw_desc_set_flow_mode(mdesc, FlowMode.S_DIN_to_AES)
             mdesc = hw_desc_set_dout_dlli(mdesc, 0, AES_BLOCK_SIZE_IN_BYTES, SB_AXI_ID,
@@ -1370,16 +1473,16 @@ class dxcc(metaclass=LogBase):
             self.sasi_sb_adddescsequence(mdesc)
 
             mdesc2 = hw_desc_init()
-            mdesc2 = hw_desc_set_cipher_mode(mdesc2, sep_cipher_mode.SEP_CIPHER_CTR)
+            mdesc2 = hw_desc_set_cipher_mode(mdesc2, SepCipherMode.SEP_CIPHER_CTR)
             mdesc2 = hw_desc_set_setup_mode(mdesc2, SetupOp.SETUP_LOAD_KEY0)
             mdesc2 = hw_desc_set_flow_mode(mdesc2, FlowMode.S_DIN_to_AES)
             mdesc2 = hw_desc_set_dout_dlli(mdesc2, 0, AES_BLOCK_SIZE_IN_BYTES, SB_AXI_ID,
                                            0)
             self.sasi_sb_adddescsequence(mdesc2)
 
-    def sbrom_cryptoupdate(self, inputptr, outputptr, blockSize, islastblock, cryptodrivermode, waitforcrypto):
+    def sbrom_cryptoupdate(self, inputptr, outputptr, block_size, islastblock, cryptodrivermode, waitforcrypto):
         if waitforcrypto == 2:
-            if self.SB_HalWaitDescCompletion() == 1:
+            if self.sb_hal_wait_desc_completion() == 1:
                 return True
         if islastblock == 1 and (cryptodrivermode & 0xFFFFFFFD) == 0:
             # 0=0
@@ -1391,17 +1494,17 @@ class dxcc(metaclass=LogBase):
             ydesc = hw_desc_init()
             ydesc = hw_desc_set_dout_dlli(ydesc, outputptr, 0x10, SB_AXI_ID, 0)
             ydesc = hw_desc_set_flow_mode(ydesc, FlowMode.S_HASH_to_DOUT)
-            ydesc = hw_desc_set_cipher_mode(ydesc, sep_hash_hw_mode.SEP_HASH_HW_SHA256)
-            ydesc = hw_desc_set_cipher_config1(ydesc, sep_hash_mode.SEP_HASH_SHA256)
+            ydesc = hw_desc_set_cipher_mode(ydesc, SepHashHwMode.SEP_HASH_HW_SHA256)
+            ydesc = hw_desc_set_cipher_config1(ydesc, SepHashMode.SEP_HASH_SHA256)
             ydesc = hw_desc_set_setup_mode(ydesc, SetupOp.SETUP_WRITE_STATE1)
             self.sasi_sb_adddescsequence(ydesc)
         udesc = hw_desc_init()
-        udesc = hw_desc_set_din_type(udesc, DmaMode.DMA_DLLI, inputptr, blockSize, SB_AXI_ID, AXI_SECURE)
+        udesc = hw_desc_set_din_type(udesc, DmaMode.DMA_DLLI, inputptr, block_size, SB_AXI_ID, AXI_SECURE)
         if not cryptodrivermode:
             udesc = hw_desc_set_flow_mode(udesc, FlowMode.DIN_HASH)
         self.sasi_sb_adddescsequence(udesc)
         if (waitforcrypto == 2 and not islastblock) or waitforcrypto == 3:
-            self.SB_HalWaitDescCompletion()
+            self.sb_hal_wait_desc_completion()
         elif waitforcrypto == 0:
             return 0
         else:
@@ -1411,9 +1514,9 @@ class dxcc(metaclass=LogBase):
         fdesc = hw_desc_init()
         fdesc = hw_desc_set_dout_dlli(fdesc, outputptr, 0x20, SB_AXI_ID, 0)
         fdesc = hw_desc_set_flow_mode(fdesc, FlowMode.S_HASH_to_DOUT)
-        fdesc = hw_desc_set_cipher_mode(fdesc, sep_hash_hw_mode.SEP_HASH_HW_SHA256)
-        fdesc = hw_desc_set_cipher_config0(fdesc, sep_hash_hw_mode.SEP_HASH_HW_SHA256)
-        fdesc = hw_desc_set_cipher_config1(fdesc, sep_hash_mode.SEP_HASH_SHA256)
+        fdesc = hw_desc_set_cipher_mode(fdesc, SepHashHwMode.SEP_HASH_HW_SHA256)
+        fdesc = hw_desc_set_cipher_config0(fdesc, SepHashHwMode.SEP_HASH_HW_SHA256)
+        fdesc = hw_desc_set_cipher_config1(fdesc, SepHashMode.SEP_HASH_SHA256)
         fdesc = hw_desc_set_setup_mode(fdesc, SetupOp.SETUP_WRITE_STATE0)
         # 0 = 0
         # 1 = 0
@@ -1422,7 +1525,7 @@ class dxcc(metaclass=LogBase):
         # 4 = 0x80C082B
         # 5 = outputptr>>32<<16
         self.sasi_sb_adddescsequence(fdesc)
-        return self.SB_HalWaitDescCompletion()
+        return self.sb_hal_wait_desc_completion()
 
 
 if __name__ == "__main__":
@@ -1435,7 +1538,7 @@ if __name__ == "__main__":
     desc = hw_desc_init()
     desc = hw_desc_set_dout_dlli(desc, 0, 0x10, SB_AXI_ID, 0)
     desc = hw_desc_set_flow_mode(desc, FlowMode.S_HASH_to_DOUT)
-    desc = hw_desc_set_cipher_mode(desc, sep_hash_hw_mode.SEP_HASH_HW_SHA256)
-    desc = hw_desc_set_cipher_config1(desc, sep_hash_mode.SEP_HASH_SHA256)
+    desc = hw_desc_set_cipher_mode(desc, SepHashHwMode.SEP_HASH_HW_SHA256)
+    desc = hw_desc_set_cipher_config1(desc, SepHashMode.SEP_HASH_SHA256)
     desc = hw_desc_set_setup_mode(desc, SetupOp.SETUP_WRITE_STATE1)
     print(desc)

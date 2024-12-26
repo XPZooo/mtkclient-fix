@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
-# (c) B.Kerler 2018-2022 GPLv3 License
+# (c) B.Kerler 2018-2024 GPLv3 License
 
 import hmac
 import hashlib
@@ -194,7 +194,8 @@ def xor_data(a: bytearray, b: bytearray, length=None):
 
 class GCpu(metaclass=LogBase):
     def __init__(self, setup, loglevel=logging.INFO, gui: bool = False):
-        self.__logger = logsetup(self, self.__logger, loglevel, gui)
+        self.setup = None
+        self.__logger, self.info, self.debug, self.warning, self.error = logsetup(self, self.__logger, loglevel, gui)
         self.read32 = setup.read32
         self.write32 = setup.write32
         self.reg = GCpuReg(setup)
@@ -265,7 +266,7 @@ class GCpu(metaclass=LogBase):
             self.reg.GCPU_REG_MSC = 0x80FF1800
             self.reg.GCPU_AXI = 0x887F
             self.reg.GCPU_UNK2 = 0
-        elif self.hwcode == [0x8163, 0x8176]:
+        elif self.hwcode == [0x8163, 0x8176, 0x8168]:
             self.write32(CLR_CLK_GATING_CTRL2, self.read32(CLR_CLK_GATING_CTRL2) | 0x8000000)
             self.reg.GCPU_REG_CTL &= 0xFFFFFFF0
             self.reg.GCPU_REG_CTL |= 0xF
@@ -352,8 +353,8 @@ class GCpu(metaclass=LogBase):
             self.__logger.info(", ".join(regs[i * 4:(i * 4) + 4]))
 
     def cmd(self, cmd, addr=0, args=None):
-        GCPU_INT_MASK = 3  # todo this might be different
-        CLR_EN = 3  # todo this might be different
+        gcpu_int_mask = 3  # todo this might be different
+        clr_en = 3  # todo this might be different
         # Setup parameter
         if args is not None:
             for i in range(1, 48):
@@ -363,8 +364,8 @@ class GCpu(metaclass=LogBase):
             self.reg.GCPU_REG_INT_CLR = 1
             self.reg.GCPU_REG_INT_EN = 0
         else:
-            self.reg.GCPU_REG_INT_CLR = CLR_EN
-            self.reg.GCPU_REG_INT_EN = GCPU_INT_MASK
+            self.reg.GCPU_REG_INT_CLR = clr_en
+            self.reg.GCPU_REG_INT_EN = gcpu_int_mask
         # GCPU Decryption Mode
         self.reg.GCPU_REG_MEM_CMD = cmd
         # GCPU PC
@@ -378,13 +379,13 @@ class GCpu(metaclass=LogBase):
                     pass
             result = -1
             # Enable GCPU Interrupt
-            self.reg.GCPU_REG_INT_CLR = CLR_EN
+            self.reg.GCPU_REG_INT_CLR = clr_en
         else:
             while not self.reg.GCPU_REG_DRAM_MON & 1:
                 pass
             result = 0
             # Enable GCPU Interrupt
-            self.reg.GCPU_REG_INT_CLR = CLR_EN
+            self.reg.GCPU_REG_INT_CLR = clr_en
         return result
 
     def set_mode_cmd(self, encrypt=False, mode="cbc", encryptedkey=True):
@@ -593,7 +594,8 @@ class GCpu(metaclass=LogBase):
         self.acquire()
         if self.load_hw_key(keyslot):
             self.memptr_set(src, bytearray(bytes.fromhex("4B65796D61737465724D617374657200")))
-            # self.memptr_set(src, bytearray(bytes.fromhex("0102030405060708090A0B0C0D0E0F0102030405060708090A0B0C0D0E0F0000")))
+            # self.memptr_set(src,
+            # bytearray(bytes.fromhex("0102030405060708090A0B0C0D0E0F0102030405060708090A0B0C0D0E0F0000")))
             if encrypt:
                 if not self.aes_encrypt_ecb(keyslot, src, dst):
                     return self.memptr_get(dst, 16)

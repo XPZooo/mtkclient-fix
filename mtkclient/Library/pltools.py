@@ -1,14 +1,14 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
-# (c) B.Kerler 2018-2023 GPLv3 License
+# (c) B.Kerler 2018-2024 GPLv3 License
 import os
 import logging
 from binascii import hexlify
 from mtkclient.Library.Exploit.amonet import Amonet
 from mtkclient.Library.Exploit.hashimoto import Hashimoto
-from mtkclient.config.payloads import pathconfig
+from mtkclient.config.payloads import PathConfig
 from mtkclient.Library.utils import LogBase, print_progress, logsetup
-from mtkclient.Library.Hardware.hwcrypto import crypto_setup, hwcrypto
+from mtkclient.Library.Hardware.hwcrypto import CryptoSetup, HwCrypto
 from mtkclient.Library.Exploit.kamakiri import Kamakiri
 from mtkclient.Library.Exploit.kamakiri2 import Kamakiri2
 from mtkclient.Library.Port import Port
@@ -16,7 +16,8 @@ from mtkclient.Library.Port import Port
 
 class PLTools(metaclass=LogBase):
     def __init__(self, mtk, loglevel=logging.INFO):
-        self.__logger = logsetup(self, self.__logger, loglevel, mtk.config.gui)
+        self.__logger, self.info, self.debug, self.warning, self.error = logsetup(self, self.__logger, 
+                                                                                  loglevel, mtk.config.gui)
         self.mtk = mtk
         self.chipconfig = self.mtk.config.chipconfig
         self.config = self.mtk.config
@@ -27,7 +28,7 @@ class PLTools(metaclass=LogBase):
         self.hwcode = mtk.config.hwcode
 
         # crypto types
-        setup = crypto_setup()
+        setup = CryptoSetup()
         setup.hwcode = self.mtk.config.hwcode
         setup.dxcc_base = self.mtk.config.chipconfig.dxcc_base
         setup.read32 = self.mtk.preloader.read32
@@ -41,7 +42,7 @@ class PLTools(metaclass=LogBase):
         setup.ap_dma_mem = self.mtk.config.chipconfig.ap_dma_mem
         setup.meid_addr = self.mtk.config.chipconfig.meid_addr
         setup.prov_addr = self.mtk.config.chipconfig.prov_addr
-        self.hwcrypto = hwcrypto(setup, loglevel, self.mtk.config.gui)
+        self.hwcrypto = HwCrypto(setup, loglevel, self.mtk.config.gui)
 
         # exploit types
         if self.config.ptype == "kamakiri":
@@ -55,7 +56,7 @@ class PLTools(metaclass=LogBase):
         elif self.config.ptype == "carbonara":
             assert "Carbonara is best served in your local restaurant :P"
 
-        self.pathconfig = pathconfig()
+        self.pathconfig = PathConfig()
         if loglevel == logging.DEBUG:
             logfilename = os.path.join("logs", "log.txt")
             fh = logging.FileHandler(logfilename, encoding='utf-8')
@@ -74,15 +75,15 @@ class PLTools(metaclass=LogBase):
             self.info(f"Couldn't open {filename} for reading.")
             return False
 
-        ack = self.exploit.runpayload(payload, ack, addr, dontack)
-        if ack == ack:
+        response_ack = self.exploit.runpayload(payload, ack, addr, dontack)
+        if response_ack == ack:
             self.info(f"Successfully sent payload: {filename}")
             self.mtk.daloader.patch = True
             return True
-        elif ack == b"\xc1\xc2\xc3\xc4":
+        elif response_ack == b"\xc1\xc2\xc3\xc4":
             if "preloader" in rf.name:
-                ack = self.mtk.port.usbread(4)
-                if ack == b"\xC0\xC0\xC0\xC0":
+                rack = self.mtk.port.usbread(4)
+                if rack == b"\xC0\xC0\xC0\xC0":
                     with open("preloader.bin", 'wb') as wf:
                         print_progress(0, 100, prefix='Progress:', suffix='Complete', bar_length=50)
                         for pos in range(0, 0x40000, 64):
@@ -100,7 +101,7 @@ class PLTools(metaclass=LogBase):
             return False
         else:
             self.error(f"Error on sending payload: {filename}")
-            self.error(f"Error, payload answered instead: {hexlify(ack).decode('utf-8')}")
+            self.error(f"Error, payload answered instead: {hexlify(response_ack).decode('utf-8')}")
             return False
 
     def runbrute(self, args):
@@ -173,7 +174,7 @@ class PLTools(metaclass=LogBase):
             data = bytearray()
         for i in range(32):
             data.append(self.config.meid[i % len(self.config.meid)])
-        if btype == "":
+        if not btype:
             encrypted = self.hwcrypto.aes_hwcrypt(data=data, iv=iv, encrypt=encrypt, btype=btype, otp=otp)
             return encrypted
         return False

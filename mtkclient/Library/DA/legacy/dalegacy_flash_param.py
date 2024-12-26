@@ -1,18 +1,18 @@
 from binascii import hexlify
-from mtkclient.Library.utils import structhelper
-from mtkclient.config.mtk_config import Mtk_Config
+from mtkclient.Library.utils import Structhelper
+from mtkclient.config.mtk_config import MtkConfig
 from struct import pack
 
 
-class sdcinfo:
+class SdcInfo:
     m_sdmmc_info = None
     m_sdmmc_ua_size = None
     m_sdmmc_cid = None
 
-    def __init__(self, config: Mtk_Config, data=None):
+    def __init__(self, config: MtkConfig, data=None):
         if data is None:
             return
-        sh = structhelper(data)
+        sh = Structhelper(data)
         self.config = config
         self.m_sdmmc_info = sh.dword(True)
         self.m_sdmmc_ua_size = sh.qword(True)
@@ -27,7 +27,7 @@ class sdcinfo:
         print(f"m_sdmmc_cid = {hexlify(cid).decode('utf-8')}")
 
 
-class configinfo:
+class ConfigInfo:
     m_int_sram_ret = None
     m_int_sram_size = None
     m_ext_ram_ret = None
@@ -37,7 +37,7 @@ class configinfo:
     randomid = None
 
     def __init__(self, data):
-        sh = structhelper(data)
+        sh = Structhelper(data)
         self.m_int_sram_ret = sh.dword(True)
         self.m_int_sram_size = sh.dword(True)
         self.m_ext_ram_ret = sh.dword(True)
@@ -58,7 +58,7 @@ class configinfo:
         return res
 
 
-class nandinfo64:
+class NandInfo64:
     m_nand_info = None
     m_nand_chip_select = None
     m_nand_flash_id = None
@@ -69,7 +69,7 @@ class nandinfo64:
     def __init__(self, data=None):
         if data is None:
             return
-        sh = structhelper(data)
+        sh = Structhelper(data)
         self.m_nand_info = sh.dword(True)
         self.m_nand_chip_select = sh.bytes()
         self.m_nand_flash_id = sh.short(True)
@@ -88,7 +88,7 @@ class nandinfo64:
 
 # ('m_nand_flash_dev_code', '>7H'),
 
-class nandinfo2:
+class NandInfo2:
     m_nand_pagesize = None
     m_nand_sparesize = None
     m_nand_pages_per_block = None
@@ -99,7 +99,7 @@ class nandinfo2:
     def __init__(self, data=None):
         if data is None:
             return
-        sh = structhelper(data)
+        sh = Structhelper(data)
         self.m_nand_pagesize = sh.short(True)
         self.m_nand_sparesize = sh.short(True)
         self.m_nand_pages_per_block = sh.short(True)
@@ -117,7 +117,7 @@ class nandinfo2:
         return res
 
 
-class emmcinfo:
+class EmmcInfo:
     m_emmc_ret = None
     m_emmc_boot1_size = None
     m_emmc_boot2_size = None
@@ -127,10 +127,10 @@ class emmcinfo:
     m_emmc_cid = None
     m_emmc_fwver = None
 
-    def __init__(self, config: Mtk_Config, data=None):
+    def __init__(self, config: MtkConfig, data=None):
         if data is None:
             return
-        sh = structhelper(data)
+        sh = Structhelper(data)
         self.config = config
         self.m_emmc_ret = sh.dword(True)
         self.m_emmc_boot1_size = sh.qword(True)
@@ -159,7 +159,7 @@ class emmcinfo:
         return res
 
 
-class nandinfo32:
+class NandInfo32:
     m_nand_info = None
     m_nand_chip_select = None
     m_nand_flash_id = None
@@ -170,7 +170,7 @@ class nandinfo32:
     def __init__(self, data=None):
         if data is None:
             return
-        sh = structhelper(data)
+        sh = Structhelper(data)
         self.m_nand_info = sh.dword(True)
         self.m_nand_chip_select = sh.bytes()
         self.m_nand_flash_id = sh.short(True)
@@ -187,7 +187,7 @@ class nandinfo32:
         return res
 
 
-class norinfo:
+class NorInfo:
     m_nor_ret = None
     m_nor_chip_select = None
     m_nor_flash_id = None
@@ -200,7 +200,7 @@ class norinfo:
     def __init__(self, data=None):
         if data is None:
             return
-        sh = structhelper(data)
+        sh = Structhelper(data)
         self.m_nor_ret = sh.dword(True)
         self.m_nor_chip_select = sh.bytes(2)
         self.m_nor_flash_id = sh.short(True)

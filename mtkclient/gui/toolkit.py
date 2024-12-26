@@ -6,7 +6,7 @@ import datetime as dt
 from PySide6.QtCore import Signal, QThread, Slot, Property
 from PySide6.QtWidgets import QFileDialog, QCheckBox
 from traceback import print_exception
-from mtkclient.config.payloads import pathconfig
+from mtkclient.config.payloads import PathConfig
 
 
 class TimeEstim:
@@ -118,7 +118,7 @@ class asyncThread(QThread):
 
 class FDialog:
     def __init__(self, parent):
-        pc = pathconfig()
+        pc = PathConfig()
         self.parent = parent
         self.fdialog = QFileDialog(parent)
         self.lastpath = os.path.dirname(os.path.dirname(pc.scriptpath))

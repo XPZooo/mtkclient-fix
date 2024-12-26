@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
-# (c) B.Kerler 2018-2023 GPLv3 License
+# (c) B.Kerler 2018-2024 GPLv3 License
 import logging
 import os
 import sys
@@ -8,17 +8,17 @@ import time
 from struct import pack, unpack
 from binascii import hexlify
 
-from mtkclient.Library.DA.legacy.dalegacy_flash_param import nandinfo64, norinfo, nandinfo32, emmcinfo, nandinfo2, \
-    sdcinfo, \
-    configinfo
-from mtkclient.Library.DA.legacy.dalegacy_iot_flash_param import norinfo_iot, nandinfo_iot, emmcinfo_iot, configinfo_iot
+from mtkclient.Library.DA.legacy.dalegacy_flash_param import NandInfo64, NorInfo, NandInfo32, EmmcInfo, NandInfo2, \
+    SdcInfo, \
+    ConfigInfo
+from mtkclient.Library.DA.legacy.dalegacy_iot_flash_param import NorInfoIoT, NandInfoIoT, EmmcInfoIoT, ConfigInfoIoT
 from mtkclient.Library.DA.legacy.dalegacy_param import PortValues, Rsp, Cmd
-from mtkclient.Library.utils import LogBase, logsetup, structhelper
+from mtkclient.Library.utils import LogBase, logsetup, Structhelper
 from mtkclient.Library.error import ErrorHandler
-from mtkclient.Library.DA.daconfig import DaStorage, EMMC_PartitionType
+from mtkclient.Library.DA.daconfig import DaStorage, EmmcPartitionType
 from mtkclient.Library.partition import Partition
-from mtkclient.config.payloads import pathconfig
-from mtkclient.Library.DA.legacy.extension.legacy import legacyext
+from mtkclient.config.payloads import PathConfig
+from mtkclient.Library.DA.legacy.extension.legacy import LegacyExt
 from mtkclient.Library.thread_handling import writedata
 from queue import Queue
 from threading import Thread
@@ -26,14 +26,14 @@ from threading import Thread
 rq = Queue()
 
 
-class passinfo:
+class PassInfo:
     ack = None
     m_download_status = None
     m_boot_style = None
     soc_ok = None
 
     def __init__(self, data):
-        sh = structhelper(data)
+        sh = Structhelper(data)
         self.ack = sh.bytes()
         self.m_download_status = sh.dword(True)
         self.m_boot_style = sh.dword(True)
@@ -47,7 +47,8 @@ def crc_word(data, chs=0):
 class DALegacy(metaclass=LogBase):
 
     def __init__(self, mtk, daconfig, loglevel=logging.INFO):
-        self.__logger = logsetup(self, self.__logger, loglevel, mtk.config.gui)
+        self.__logger, self.info, self.debug, self.warning, self.error = logsetup(self, self.__logger, 
+                                                                                  loglevel, mtk.config.gui)
         self.Cmd = Cmd()
         self.Rsp = Rsp()
         self.PortValues = PortValues()
@@ -69,12 +70,12 @@ class DALegacy(metaclass=LogBase):
         self.sectorsize = self.daconfig.pagesize
         self.totalsectors = self.daconfig.flashsize
         self.partition = Partition(self.mtk, self.readflash, self.read_pmt, loglevel)
-        self.pathconfig = pathconfig()
+        self.pathconfig = PathConfig()
         self.patch = False
         self.generatekeys = self.mtk.config.generatekeys
         if self.generatekeys:
             self.patch = True
-        self.lft = legacyext(self.mtk, self, loglevel)
+        self.lft = LegacyExt(self.mtk, self, loglevel)
 
     def boot_to(self, addr, data, display=True, timeout=0.5):
         pass
@@ -203,10 +204,7 @@ class DALegacy(metaclass=LogBase):
             if ack == self.Rsp.ACK:
                 self.usbwrite(pack(">B", partition))
                 res = self.usbread(1)
-                if res < 0:
-                    return False
-                else:
-                    return True
+                return not res < 0
         return False
 
     def check_security(self):
@@ -292,6 +290,12 @@ class DALegacy(metaclass=LogBase):
             return False
         errorcode = int.from_bytes(buffer, 'big')
         if errorcode == 0x0:
+            if hwcode == 0x6592:
+                tmp1=self.usbread(4)
+                tmp2=self.usbread(4)
+                tmp3=self.usbread(4)
+                tmp4 = self.usbread(4)
+                tmp5 = self.usbread(4)
             return True
         if errorcode != 0xBC3:
             self.error(self.eh.status(errorcode))
@@ -343,8 +347,7 @@ class DALegacy(metaclass=LogBase):
                         self.error("EMI Config not accepted :(")
                         return False
                     if ret == self.Rsp.ACK:
-                        self.info("Sending dram info ...")
-                        dramlength = len(self.daconfig.emi)
+                        self.info(f"Sending dram info ... EMI-Version {hex(self.daconfig.emiver)}")
                         if self.daconfig.emiver in [0xF, 0x10, 0x11, 0x14, 0x15]:
                             dramlength = unpack(">I", self.usbread(0x4))[0]  # 0x000000BC
                             self.info(f"RAM-Length: {hex(dramlength)}")
@@ -422,7 +425,7 @@ class DALegacy(metaclass=LogBase):
         # except:
         #    pass
         try:
-            self.mtk.port.cdc.setLineCoding(baudrate=921600, parity=0, databits=8, stopbits=1)
+            self.mtk.port.cdc.set_line_coding(baudrate=921600, parity=0, databits=8, stopbits=1)
         except Exception as err:
             print(err)
             pass
@@ -472,10 +475,10 @@ class DALegacy(metaclass=LogBase):
         return True
 
     def read_flash_info_iot(self):
-        self.nor = norinfo_iot(self.usbread(0x36))
-        self.nand = nandinfo_iot(self.usbread(0x23))
-        self.emmc = emmcinfo_iot(self.config, self.usbread(0x2C))
-        self.flashconfig = configinfo_iot(self.usbread(0x1E))
+        self.nor = NorInfoIoT(self.usbread(0x36))
+        self.nand = NandInfoIoT(self.usbread(0x23))
+        self.emmc = EmmcInfoIoT(self.config, self.usbread(0x2C))
+        self.flashconfig = ConfigInfoIoT(self.usbread(0x1E))
         # ack
         self.usbread(1)
         # ack
@@ -508,23 +511,25 @@ class DALegacy(metaclass=LogBase):
         return False
 
     def read_flash_info(self):
-        self.nor = norinfo(self.usbread(0x1C))
+        self.nor = NorInfo(self.usbread(0x1C))
         data = self.usbread(0x11)
-        self.nand = nandinfo64(data)
+        self.nand = NandInfo64(data)
         nandcount = self.nand.m_nand_flash_id_count
         if nandcount == 0:
-            self.nand = nandinfo32(data)
+            self.nand = NandInfo32(data)
             nandcount = self.nand.m_nand_flash_id_count
             nc = data[-4:] + self.usbread(nandcount * 2 - 4)
         else:
             nc = self.usbread(nandcount * 2)
         m_nand_dev_code = unpack(">" + str(nandcount) + "H", nc)
         self.nand.m_nand_flash_dev_code = m_nand_dev_code
-        self.nand.info2 = nandinfo2(self.usbread(9))
-        self.emmc = emmcinfo(self.config, self.usbread(0x5C))
-        self.sdc = sdcinfo(self.config, self.usbread(0x1C))
-        self.flashconfig = configinfo(self.usbread(0x26))
-        pi = passinfo(self.usbread(0xA))
+        self.nand.info2 = NandInfo2(self.usbread(9))
+        self.emmc = EmmcInfo(self.config, self.usbread(0x5C))
+        self.sdc = SdcInfo(self.config, self.usbread(0x1C))
+        self.flashconfig = ConfigInfo(self.usbread(0x26))
+        if self.config.hwcode == 0x8163:
+            status=self.usbread(4)
+        pi = PassInfo(self.usbread(0xA))
         if pi.ack == 0x5A:
             return True
         elif pi.m_download_status & 0xFF == 0x5A:
@@ -791,7 +796,8 @@ class DALegacy(metaclass=LogBase):
                 buffer = self.usbread(1)
                 if buffer != self.Rsp.ACK:
                     self.error(
-                        f"Error on sending brom stage {stage} addr {hex(address+pos)}: {hexlify(buffer).decode('utf-8')}")
+                        f"Error on sending brom stage {stage} addr {hex(address+pos)}: " +
+                        f"{hexlify(buffer).decode('utf-8')}")
                     self.config.set_gui_status(self.config.tr("Error on sending brom stage"))
                     break
             time.sleep(0.5)
@@ -811,6 +817,8 @@ class DALegacy(metaclass=LogBase):
             res = self.usbread(1)
             if res == self.Rsp.ACK:
                 speed = self.usbread(1)
+                if speed[0] > 0:
+                    self.mtk.port.cdc.set_fast_mode(True)
                 return speed
         return None
 
@@ -946,7 +954,7 @@ class DALegacy(metaclass=LogBase):
                 return True
         return True
 
-    def writeflash(self, addr, length, filename, offset=0, parttype=None, wdata=None, display=True):
+    def writeflash(self, addr, length, filename: str = "", offset=0, parttype=None, wdata=None, display=True):
         self.mtk.daloader.progress.clear()
         return self.sdmmc_write_data(addr=addr, length=length, filename=filename, offset=offset, parttype=parttype,
                                      wdata=wdata, display=display)
@@ -994,39 +1002,39 @@ class DALegacy(metaclass=LogBase):
         if self.daconfig.flashtype == "emmc":
             if parttype is None or parttype == "user" or parttype == "":
                 length = min(length, self.emmc.m_emmc_ua_size)
-                parttype = EMMC_PartitionType.MTK_DA_EMMC_PART_USER
+                parttype = EmmcPartitionType.MTK_DA_EMMC_PART_USER
             elif parttype == "boot1":
                 length = min(length, self.emmc.m_emmc_boot1_size)
-                parttype = EMMC_PartitionType.MTK_DA_EMMC_PART_BOOT1
+                parttype = EmmcPartitionType.MTK_DA_EMMC_PART_BOOT1
             elif parttype == "boot2":
                 length = min(length, self.emmc.m_emmc_boot2_size)
-                parttype = EMMC_PartitionType.MTK_DA_EMMC_PART_BOOT2
+                parttype = EmmcPartitionType.MTK_DA_EMMC_PART_BOOT2
             elif parttype == "gp1":
                 length = min(length, self.emmc.m_emmc_gp_size[0])
-                parttype = EMMC_PartitionType.MTK_DA_EMMC_PART_GP1
+                parttype = EmmcPartitionType.MTK_DA_EMMC_PART_GP1
             elif parttype == "gp2":
                 length = min(length, self.emmc.m_emmc_gp_size[1])
-                parttype = EMMC_PartitionType.MTK_DA_EMMC_PART_GP2
+                parttype = EmmcPartitionType.MTK_DA_EMMC_PART_GP2
             elif parttype == "gp3":
                 length = min(length, self.emmc.m_emmc_gp_size[2])
-                parttype = EMMC_PartitionType.MTK_DA_EMMC_PART_GP3
+                parttype = EmmcPartitionType.MTK_DA_EMMC_PART_GP3
             elif parttype == "gp4":
                 length = min(length, self.emmc.m_emmc_gp_size[3])
-                parttype = EMMC_PartitionType.MTK_DA_EMMC_PART_GP4
+                parttype = EmmcPartitionType.MTK_DA_EMMC_PART_GP4
             elif parttype == "rpmb":
-                parttype = EMMC_PartitionType.MTK_DA_EMMC_PART_RPMB
+                parttype = EmmcPartitionType.MTK_DA_EMMC_PART_RPMB
         elif self.daconfig.flashtype == "nand":
-            parttype = EMMC_PartitionType.MTK_DA_EMMC_PART_USER
+            parttype = EmmcPartitionType.MTK_DA_EMMC_PART_USER
             length = min(length, self.nand.m_nand_flash_size)
         elif self.daconfig.flashtype == "nor":
-            parttype = EMMC_PartitionType.MTK_DA_EMMC_PART_USER
+            parttype = EmmcPartitionType.MTK_DA_EMMC_PART_USER
             length = min(length, self.nor.m_nor_flash_size)
         else:
-            parttype = EMMC_PartitionType.MTK_DA_EMMC_PART_USER
+            parttype = EmmcPartitionType.MTK_DA_EMMC_PART_USER
             length = min(length, self.sdc.m_sdmmc_ua_size)
         return length, parttype
 
-    def readflash(self, addr: int, length: int, filename: str, parttype=None, display=True) -> bytes:
+    def readflash(self, addr: int, length: int, filename: str, parttype=None, display=True) -> (bytes, bool):
         global rq
         self.mtk.daloader.progress.clear()
         length, parttype = self.get_parttype(length, parttype)
@@ -1101,7 +1109,7 @@ class DALegacy(metaclass=LogBase):
                 size = bytestoread
                 if bytestoread > packetsize:
                     size = packetsize
-                tmp = self.usbread(size)
+                tmp = self.usbread(size, w_max_packet_size=size)
                 rq.put(tmp[:size])
                 bytestoread -= size
                 curpos += size
@@ -1126,8 +1134,8 @@ class DALegacy(metaclass=LogBase):
                 size = bytestoread
                 if bytestoread > packetsize:
                     size = packetsize
-                buffer.extend(self.usbread(size))
-                bytestoread -= size
+                buffer.extend(self.usbread(size, w_max_packet_size=size))
+                bytestoread = len(buffer)-length
                 checksum = unpack(">H", self.usbread(2))[0]
                 self.debug("Checksum: %04X" % checksum)
                 self.usbwrite(self.Rsp.ACK)

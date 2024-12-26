@@ -1,17 +1,17 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
-# (c) B.Kerler 2018-2023 GPLv3 License
+# (c) B.Kerler 2018-2024 GPLv3 License
 import logging
 import sys
 
 from mtkclient.Library.utils import LogBase, logsetup
 from mtkclient.Library.Hardware.hwcrypto_gcpu import GCpu
-from mtkclient.Library.Hardware.hwcrypto_dxcc import dxcc
-from mtkclient.Library.Hardware.hwcrypto_sej import sej
-from mtkclient.Library.Hardware.cqdma import cqdma
+from mtkclient.Library.Hardware.hwcrypto_dxcc import Dxcc
+from mtkclient.Library.Hardware.hwcrypto_sej import Sej
+from mtkclient.Library.Hardware.cqdma import Cqdma
 
 
-class crypto_setup:
+class CryptoSetup:
     hwcode = None
     dxcc_base = None
     gcpu_base = None
@@ -29,13 +29,13 @@ class crypto_setup:
     efuse_base = None
 
 
-class hwcrypto(metaclass=LogBase):
+class HwCrypto(metaclass=LogBase):
     def __init__(self, setup, loglevel=logging.INFO, gui: bool = False):
-        self.__logger = logsetup(self, self.__logger, loglevel, gui)
-        self.dxcc = dxcc(setup, loglevel, gui)
+        self.__logger, self.info, self.debug, self.warning, self.error = logsetup(self, self.__logger, loglevel, gui)
+        self.dxcc = Dxcc(setup, loglevel, gui)
         self.gcpu = GCpu(setup, loglevel, gui)
-        self.sej = sej(setup, loglevel)
-        self.cqdma = cqdma(setup, loglevel)
+        self.sej = Sej(setup, loglevel)
+        self.cqdma = Cqdma(setup, loglevel)
         self.hwcode = setup.hwcode
         self.setup = setup
         self.read32 = setup.read32
@@ -60,8 +60,9 @@ class hwcrypto(metaclass=LogBase):
                 if mode == "cbc":
                     return self.sej.hw_aes128_cbc_encrypt(buf=data, encrypt=True)
                 elif mode == "sst":
-                    data2 = self.sej.generate_hw_meta(encrypt=True, data=data)
-                    data3 = self.sej.SST_Secure_Algo_With_Level(buf=data, encrypt=True)
+                    self.sej.sej_base = 0xC0016000
+                    data2 = self.sej.generate_hw_meta(encrypt=True, data=data, legacy=False)
+                    data3 = self.sej.sst_secure_algo_with_level(buf=data, encrypt=True)
                     print(data2.hex())
                     print(data3.hex())
                     sys.stdout.flush()
@@ -71,7 +72,7 @@ class hwcrypto(metaclass=LogBase):
                     return self.sej.hw_aes128_cbc_encrypt(buf=data, encrypt=False)
                 elif mode == "sst":
                     self.sej.sej_base = 0xC0016000
-                    data3 = self.sej.SST_Secure_Algo_With_Level(buf=data[:0x20], encrypt=False, aes_top_legacy=False)
+                    data3 = self.sej.sst_secure_algo_with_level(buf=data[:0x20], encrypt=False, aes_top_legacy=False)
                     print(data3.hex())
                     sys.stdout.flush()
             if mode == "rpmb":
@@ -90,7 +91,7 @@ class hwcrypto(metaclass=LogBase):
             elif mode == "mtee":
                 if self.hwcode in [0x321]:
                     return self.gcpu.mtk_gcpu_mtee_6735()
-                elif self.hwcode in [0x8167, 0x8163, 0x8176]:
+                elif self.hwcode in [0x8168, 0x8167, 0x8163, 0x8176]:
                     return self.gcpu.mtk_gcpu_mtee_8167()
         elif btype == "dxcc":
             if mode == "fde":
