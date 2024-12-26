@@ -49,10 +49,11 @@ class ArgHandler(metaclass=LogBase):
         except AttributeError:
             pass
 
-        config.reconnect = True
+        config.reconnect = False
         try:
             if args.noreconnect is not None:
-                config.reconnect = not args.noreconnect
+                # config.reconnect = not args.noreconnect
+                config.reconnect = False
         except AttributeError:
             pass
         config.uartloglevel = 2
