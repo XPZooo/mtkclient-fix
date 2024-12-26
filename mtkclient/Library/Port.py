@@ -47,7 +47,7 @@ class Port(metaclass=LogBase):
             self.__logger.addHandler(fh)
             self.__logger.setLevel(logging.DEBUG)
         else:
-            self.__logger.setLevel(logging.INFO)
+            self.__logger.setLevel(logging.CRITICAL)
 
     def run_serial_handshake(self):
         try:  # Support for serial port where ep_out is unknown
@@ -161,19 +161,19 @@ class Port(metaclass=LogBase):
                 if self.cdc.connect() and self.run_handshake():
                     return True
                 else:
-                    if loop == 5:
-                        sys.stdout.write('\n')
-                        self.info("Hint:\n\nPower off the phone before connecting.\n" +
-                                  "For brom mode, press and hold vol up, vol dwn, or all hw buttons and " +
-                                  "connect usb.\n" +
-                                  "For preloader mode, don't press any hw button and connect usb.\n"
-                                  "If it is already connected and on, hold power for 10 seconds to reset.\n")
-                        sys.stdout.write('\n')
-                    if loop >= 10:
-                        sys.stdout.write('.')
-                    if loop >= 20:
-                        sys.stdout.write('\n')
-                        loop = 0
+                #   if loop == 5:
+                #       sys.stdout.write('\n')
+                #       self.info("Hint:\n\nPower off the phone before connecting.\n" +
+                #                 "For brom mode, press and hold vol up, vol dwn, or all hw buttons and " +
+                #                 "connect usb.\n" +
+                #                 "For preloader mode, don't press any hw button and connect usb.\n"
+                #                 "If it is already connected and on, hold power for 10 seconds to reset.\n")
+                #       sys.stdout.write('\n')
+                #   if loop >= 10:
+                #       sys.stdout.write('.')
+                #   if loop >= 20:
+                #       sys.stdout.write('\n')
+                #       loop = 0
                     loop += 1
                     time.sleep(0.3)
                     sys.stdout.flush()

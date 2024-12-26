@@ -40,7 +40,7 @@ class Stage2(metaclass=LogBase):
             self.__logger.addHandler(fh)
             self.__logger.setLevel(logging.DEBUG)
         else:
-            self.__logger.setLevel(logging.INFO)
+            self.__logger.setLevel(logging.CRITICAL)
 
         self.cdc = UsbClass(portconfig=default_ids, loglevel=loglevel, devclass=10)
         self.usbread = self.cdc.usbread

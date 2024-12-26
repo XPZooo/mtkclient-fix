@@ -64,7 +64,7 @@ class Cqdma(metaclass=LogBase):
             self.__logger.addHandler(fh)
             self.__logger.setLevel(logging.DEBUG)
         else:
-            self.__logger.setLevel(logging.INFO)
+            self.__logger.setLevel(logging.CRITICAL)
 
     def cqread32(self, addr, dwords):
         res = bytearray()
