@@ -44,8 +44,8 @@ cmds = {
 
 
 def main():
-    #print(info)
-    print("")
+    #print(info) 
+    #print("")
     parser = argparse.ArgumentParser(description=info)
     subparsers = parser.add_subparsers(dest="cmd",
                                        help='Valid commands are: \n' +
@@ -1016,7 +1016,7 @@ def main():
         exit(0)
 
     mtk = Main(args).run(parser)
-    print('mtk:working done')
+    print('mtk:working done') 
     sys.stdout.flush()
 
 

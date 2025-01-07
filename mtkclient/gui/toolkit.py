@@ -166,10 +166,10 @@ class FDialog:
         return None
 
 
-def trap_exc_during_debug(type_, value, traceback):
+def trap_exc_during_debug(type_, value, traceback): 
     print(print_exception(type_, value, traceback), flush=True)
     print("### except find!")
-    print('mtk:working done')
+    print('mtk:working done') 
     # sendToLog("Error: "+str(value))
     # when app raises uncaught exception, print info
     # print("OH NO")

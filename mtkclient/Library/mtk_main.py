@@ -176,6 +176,8 @@ class Main(metaclass=LogBase):
 
     @staticmethod
     def close():
+        print('mtk:working done')
+        sys.stdout.flush()
         sys.exit(0)
 
     def cmd_stage(self, mtk, filename, stage2addr, stage2file, verifystage2):
