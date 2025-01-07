@@ -563,13 +563,13 @@ class DaHandler(metaclass=LogBase):
                         countFP -= 1
                 else:
                     strParts = strParts[:-1]
-                    print(f'mtk[eraseFailed-1-Erase partition {strParts} is not exist!]') 
+                    print(f'mtk[eraseFailed-1-Erase partition |{strParts}| is not exist!]') 
                     self.error(f"Error: Couldn't detect partition: {partition}\nAvailable partitions:")
                     for rpartition in res[1]:
                         self.info(rpartition.name)
         strParts = strParts[:-1]
         if countFP == len(partitions) and countFP >= 1:
-            print(f'mtk[eraseSuccess-1-Erase partition [{strParts}] success.]') 
+            print(f'mtk[eraseSuccess-1-Erase partition |{strParts}| success.]') 
             #print("All partitions formatted.")
         elif countFP != len(partitions) and countFP >= 1:
             print("Failed to format all partitions.")

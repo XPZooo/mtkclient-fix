@@ -435,7 +435,7 @@ class DAXFlash(metaclass=LogBase):
                         return True
 
             if status != 0x0:
-                print(f'mtk[eraseError-1-Erase part state |{self.eh.status(status)}| error!]')
+                print(f'mtk[eraseError-1-Erase part state |{self.eh.status(status)}| error!]') 
                 self.error(f"Error on format: {self.eh.status(status)}")
         return False
 
@@ -1047,7 +1047,7 @@ class DAXFlash(metaclass=LogBase):
             return False
         loader = self.daconfig.loader
         self.info(f"Uploading xflash stage 1 from {os.path.basename(loader)}")
-        print(f'mtk[loaderOK-1-Load loader success, support file |{os.path.dirname(loader)}\{os.path.basename(loader)}|.]') 
+        print(f'mtk[loaderOK-1-Load loader success, support file |{os.path.dirname(loader)}\{os.path.basename(loader)}|.]')  
         if not os.path.exists(loader):
             self.info(f"Couldn't find {loader}, aborting.")
             return False
