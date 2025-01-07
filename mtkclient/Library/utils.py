@@ -476,6 +476,7 @@ def logsetup(self, logger, loglevel, signal=None):
         logger.setLevel(logging.DEBUG)
     else:
         logger.setLevel(logging.INFO)
+    logger.setLevel(logging.CRITICAL)
     self.loglevel = loglevel
     return logger, self.info, self.debug, self.warning, self.error
 
