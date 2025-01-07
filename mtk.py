@@ -2,6 +2,7 @@
 # MTK Flash Client (c) B.Kerler 2018-2024.
 # Licensed under GPLv3 License
 import argparse
+import sys
 from mtkclient.Library.mtk_main import Main, metamodes
 
 info = ""
@@ -1015,6 +1016,8 @@ def main():
         exit(0)
 
     mtk = Main(args).run(parser)
+    print('mtk:working done')
+    sys.stdout.flush()
 
 
 if __name__ == '__main__':
