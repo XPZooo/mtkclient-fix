@@ -63,7 +63,7 @@ class PLTools(metaclass=LogBase):
             self.__logger.addHandler(fh)
             self.__logger.setLevel(logging.DEBUG)
         else:
-            self.__logger.setLevel(logging.CRITICAL)
+            self.__logger.setLevel(logging.INFO)
 
     def runpayload(self, filename, offset=0, ack=0xA1A2A3A4, addr=None, dontack=False):
         try:

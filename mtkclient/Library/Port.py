@@ -47,7 +47,7 @@ class Port(metaclass=LogBase):
             self.__logger.addHandler(fh)
             self.__logger.setLevel(logging.DEBUG)
         else:
-            self.__logger.setLevel(logging.CRITICAL)
+            self.__logger.setLevel(logging.INFO)
 
     def run_serial_handshake(self):
         try:  # Support for serial port where ep_out is unknown

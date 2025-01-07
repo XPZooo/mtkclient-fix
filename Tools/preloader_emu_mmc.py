@@ -38,7 +38,7 @@ class Stage2(metaclass=LogBase):
             self.__logger.addHandler(fh)
             self.__logger.setLevel(logging.DEBUG)
         else:
-            self.__logger.setLevel(logging.CRITICAL)
+            self.__logger.setLevel(logging.INFO)
         portconfig = [[0x0E8D, 0x0003, -1], [0x0E8D, 0x2000, -1]]
         self.cdc = UsbClass(portconfig=portconfig, loglevel=loglevel, devclass=10)
 

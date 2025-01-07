@@ -348,13 +348,13 @@ class Main(metaclass=LogBase):
         try:
             if self.args.debugmode:
                 loglevel = logging.DEBUG
-                self.__logger.setLevel(logging.CRITICAL)
+                self.__logger.setLevel(logging.DEBUG)
             else:
                 loglevel = logging.INFO
-                self.__logger.setLevel(logging.CRITICAL)
+                self.__logger.setLevel(logging.INFO)
         except Exception:
             loglevel = logging.INFO
-            self.__logger.setLevel(logging.CRITICAL)
+            self.__logger.setLevel(logging.INFO)
             pass
         config = MtkConfig(loglevel=loglevel, gui=None, guiprogress=None)
         ArgHandler(self.args, config)

@@ -29,7 +29,7 @@ class SecCfgV4(metaclass=LogBase):
             self.__logger.addHandler(fh)
             self.__logger.setLevel(logging.DEBUG)
         else:
-            self.__logger.setLevel(logging.CRITICAL)
+            self.__logger.setLevel(logging.INFO)
 
     def parse(self, indata):
         rrf = StructhelperIo(BytesIO(bytearray(indata)))
@@ -175,7 +175,7 @@ class SecCfgV3(metaclass=LogBase):
             self.__logger.addHandler(fh)
             self.__logger.setLevel(logging.DEBUG)
         else:
-            self.__logger.setLevel(logging.CRITICAL)
+            self.__logger.setLevel(logging.INFO)
 
     def setotp(self, _hwc):
         otp = None
