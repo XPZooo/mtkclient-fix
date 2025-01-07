@@ -265,7 +265,7 @@ class GPT(metaclass=LogBase):
         print(self.tostring())
 
     def tostring(self):
-        mstr = "mtk[gptInfo-"
+        mstr = "mtk[gptInfo-" 
         # mstr = "\nGPT Table:\n-------------\n"
         mstr += "{0}-".format(len(self.partentries))
         for partition in self.partentries:
