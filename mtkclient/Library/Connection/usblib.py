@@ -513,6 +513,11 @@ class UsbClass(DeviceClass):
                     if timeout == maxtimeout:
                         return b""
                     timeout += 1
+                    if timeout > 5 :
+                        self.close()
+                        print("mtk[usbTimeout-1-Usb conn time out.]")
+                        sys.stdout.flush()
+                        # self.closeExit()
                     pass
                 elif "Overflow" in error:
                     self.error("USB Overflow")
@@ -529,6 +534,11 @@ class UsbClass(DeviceClass):
             if self.loglevel == logging.DEBUG:
                 self.verify_data(res[:resplen], "RX:")
         return res[:resplen]
+
+    def closeExit(self):
+        print('mtk:working done')
+        sys.stdout.flush()
+        sys.exit(0)
 
     def usbxmlread(self, maxtimeout=100):
         res = bytearray()
