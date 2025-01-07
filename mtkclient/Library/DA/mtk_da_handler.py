@@ -145,10 +145,10 @@ class DaHandler(metaclass=LogBase):
                                 self.error("Failed to dump preloader from ram, provide a valid one " +
                                            "via --preloader option")
                                 mtk.daloader.patch = False
-                                print(f'mtk[preloadNO-1-Load preload failed.]')
+                                print(f'mtk[preloadNO-1-Load preload failed.]') 
                             else:
                                 mtk.daloader.patch = True
-                                print(f'mtk[preloadOK-1-Load preload success.]')
+                                print(f'mtk[preloadOK-1-Load preload success.]') 
                         else:
                             self.error("Failed to dump preloader from ram, provide a valid one " +
                                        "via --preloader option")
@@ -881,7 +881,7 @@ class DaHandler(metaclass=LogBase):
         elif cmd == "da":
             subcmd = args.subcmd
             if subcmd is None:
-                print("Available da cmds are: [peek, poke, generatekeys, seccfg, rpmb, meta, memdump, efuse, dumpbrom, vbmeta]")
+                #print("Available da cmds are: [peek, poke, generatekeys, seccfg, rpmb, meta, memdump, efuse, dumpbrom, vbmeta]")
                 return
             if subcmd == "peek":
                 addr = getint(args.address)

@@ -1043,11 +1043,11 @@ class DAXFlash(metaclass=LogBase):
     def upload_da1(self):
         if self.daconfig.da_loader is None:
             self.error("No valid da loader found... aborting.")
-            print('mtk[loaderNO-1-Load loader failed.]')
+            print('mtk[loaderNO-1-Load loader failed.]') 
             return False
         loader = self.daconfig.loader
         self.info(f"Uploading xflash stage 1 from {os.path.basename(loader)}")
-        print(f'mtk[loaderOK-1-Load loader success, support file |{os.path.dirname(loader)}\{os.path.basename(loader)}|.]')
+        print(f'mtk[loaderOK-1-Load loader success, support file |{os.path.dirname(loader)}\{os.path.basename(loader)}|.]') 
         if not os.path.exists(loader):
             self.info(f"Couldn't find {loader}, aborting.")
             return False
@@ -1248,12 +1248,12 @@ class DAXFlash(metaclass=LogBase):
                             ret = self.send_devctrl(XCmd.CUSTOM_ACK)
                             status = self.status()
                             if status == 0x0 and unpack("<I", ret)[0] == 0xA1A2A3A4:
-                                print(f'mtk[devLoadOK-1-Device load setup success.]')
+                                print(f'mtk[devLoadOK-1-Device load setup success.]') 
                                 self.info("DA Extensions successfully added")
                                 self.daext = True
                                 self.xft.custom_set_storage(ufs=self.daconfig.flashtype == "ufs")
                         if not self.daext:
-                            print(f'mtk[devLoadNO-1-Device load setup failed.]')
+                            print(f'mtk[devLoadNO-1-Device load setup failed.]') 
                             self.warning("DA Extensions failed to enable")
 
                         if self.generatekeys:
