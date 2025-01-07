@@ -877,7 +877,7 @@ class DaHandler(metaclass=LogBase):
                     os.remove(os.path.join(self.mtk.config.hwparam_path, "hwparam.json"))
             mtk.daloader.shutdown(bootmode=0)
             # print("Reset command was sent. Disconnect usb cable to power off.")
-            print("mtk[resetInfo-1-reset devices success, need disconnect usb cable to power off]")
+            print("mtk[resetInfo-1-reset devices success, need disconnect usb cable to power off]") 
         elif cmd == "da":
             subcmd = args.subcmd
             if subcmd is None:
