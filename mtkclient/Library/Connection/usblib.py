@@ -327,7 +327,7 @@ class UsbClass(DeviceClass):
                 self.error("Get configuration failed 2.")
         if self.configuration is None:
             self.error("Couldn't get device configuration.")
-            print("mtk[usbConfigError-1-Usb config setup failed, pc need restart?  Is driver OK?]")
+            print("mtk[usbConfigError-1-Usb config setup failed, pc need restart?  Is driver OK?]") 
             return False
         if self.interface == -1:
             for interfacenum in range(0, self.configuration.bNumInterfaces):
@@ -515,7 +515,7 @@ class UsbClass(DeviceClass):
                     timeout += 1
                     if timeout > 5 :
                         self.close()
-                        print("mtk[usbTimeout-1-Usb conn time out.]")
+                        print("mtk[usbTimeout-1-Usb conn time out.]") 
                         sys.stdout.flush()
                         # self.closeExit()
                     pass

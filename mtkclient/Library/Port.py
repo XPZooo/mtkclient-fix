@@ -183,11 +183,19 @@ class Port(metaclass=LogBase):
                 if "access denied" in str(serr):
                     self.warning(str(serr))
                 self.debug(str(serr))
+                print(f'************** handshake error: {str(serr)}')
                 if "Operation not supported" in str(serr):
                     self.info(f'************** handshake driver not support: {str(serr)}')
                     print("mtk[usbExcept-1-Check if the driver is OK, pc need restart?]")
+                    sys.stdout.flush()
+                    # self.closeExit()
                 pass
         return False
+
+    def closeExit(self):
+        print('mtk:working done')
+        sys.stdout.flush()
+        sys.exit(0)
 
     def mtk_cmd(self, value, bytestoread=0, nocmd=False):
         resp = b""
