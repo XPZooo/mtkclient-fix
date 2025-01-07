@@ -75,7 +75,8 @@ class DaHandler(metaclass=LogBase):
                             try:
                                 with open(filename, "wb") as wf:
                                     wf.write(preloader)
-                                    print(f"Successfully extracted preloader for this device to: {filename}")
+                                    print(f"mtk[findDevPre-1-Succ dump preloader for this device to: {filename}.]")
+                                    # print(f"Successfully extracted preloader for this device to: {filename}")
                             except Exception as err:
                                 self.error(err)
                                 pass

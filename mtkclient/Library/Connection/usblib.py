@@ -302,6 +302,7 @@ class UsbClass(DeviceClass):
             for usbid in self.portconfig:
                 if dev.idProduct == usbid[1] and dev.idVendor == usbid[0]:
                     print(f"mtk[findUSBDev-1-Find dev.idProduct {dev.idProduct}  dev.idVendor {dev.idVendor}.]") 
+                    sys.stdout.flush()
                     self.device = dev
                     self.vid = dev.idVendor
                     self.pid = dev.idProduct
@@ -386,7 +387,7 @@ class UsbClass(DeviceClass):
                                                           usb.util.endpoint_direction(xe.bEndpointAddress) ==
                                                           usb.util.ENDPOINT_IN)
             print(f'mtk[devUsbInitOK-1-Usb dev vid:{hex(self.device.idVendor)} pid:{hex(self.device.idProduct)} init ok.]') 
-            sys.stdout.flush()
+            sys.stdout.flush() 
             self.connected = True
             return True
         print("Couldn't find CDC interface. Aborting.")
