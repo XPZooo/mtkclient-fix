@@ -95,6 +95,7 @@ class DaHandler(metaclass=LogBase):
                 mtk.daloader.reinit()
                 return mtk
         if mtk.config.target_config is None:
+            print(f'mtk[reStartDev-1-State file not exist, reset device.]')
             self.info("Please disconnect, start mtkclient and reconnect.")
             return None
         if mtk.config.target_config["sbc"] and not mtk.config.is_brom and mtk.config.loader is None:
@@ -144,8 +145,10 @@ class DaHandler(metaclass=LogBase):
                                 self.error("Failed to dump preloader from ram, provide a valid one " +
                                            "via --preloader option")
                                 mtk.daloader.patch = False
+                                print(f'mtk[preloadNO-1-Load preload failed.]')
                             else:
                                 mtk.daloader.patch = True
+                                print(f'mtk[preloadOK-1-Load preload success.]')
                         else:
                             self.error("Failed to dump preloader from ram, provide a valid one " +
                                        "via --preloader option")
@@ -534,10 +537,13 @@ class DaHandler(metaclass=LogBase):
                                             parttype=parttype)
 
     def da_erase(self, partitions: list, parttype: str):
-        count_fp = 0
+        countFP = 0
         if parttype == "user" or parttype is None:
             i = 0
+            strParts = ""
             for partition in partitions:
+                strParts += partition
+                strParts += "&"
                 i += 1
                 res = self.mtk.daloader.detect_partition(partition, parttype)
                 if res[0]:
@@ -545,23 +551,29 @@ class DaHandler(metaclass=LogBase):
                     if self.mtk.daloader.formatflash(addr=rpartition.sector * self.config.pagesize,
                                                      length=rpartition.sectors * self.config.pagesize,
                                                      partitionname=partition, parttype=parttype):
-                        print(
-                            f"Formatted sector {str(rpartition.sector)} with " +
-                            f"sector count {str(rpartition.sectors)}.")
-                        count_fp += 1
+                        # print(
+                        #     f"Formatted sector {str(rpartition.sector)} with " +
+                        #     f"sector count {str(rpartition.sectors)}.")
+                        countFP += 1
                     else:
-                        print(
-                            f"Failed to format sector {str(rpartition.sector)} with " +
-                            f"sector count {str(rpartition.sectors)}.")
-                        count_fp -= 1
+                        # print(
+                        #    f"Failed to format sector {str(rpartition.sector)} with " +
+                        #    f"sector count {str(rpartition.sectors)}.")
+                        countFP -= 1
                 else:
+                    strParts = strParts[:-1]
+                    print(f'mtk[eraseFailed-1-Erase partition {strParts} is not exist!]')
                     self.error(f"Error: Couldn't detect partition: {partition}\nAvailable partitions:")
                     for rpartition in res[1]:
                         self.info(rpartition.name)
-        if count_fp == len(partitions) and count_fp > 1:
-            print("All partitions formatted.")
-        elif count_fp != len(partitions) and count_fp > 1:
+        strParts = strParts[:-1]
+        if countFP == len(partitions) and countFP >= 1:
+            print(f'mtk[eraseSuccess-1-Erase partition [{strParts}] success.]')
+            #print("All partitions formatted.")
+        elif countFP != len(partitions) and countFP >= 1:
             print("Failed to format all partitions.")
+        print('mtk:working done')
+        sys.stdout.flush()
 
     def da_ess(self, sector: int, sectors: int, parttype: str):
         if parttype == "user" or parttype is None:
@@ -746,6 +758,7 @@ class DaHandler(metaclass=LogBase):
         elif cmd == "printgpt":
             data, guid_gpt = mtk.daloader.get_gpt()
             if not guid_gpt:
+                print('mtk[gptInfoError-1-retry printgpt]')
                 self.error('Error reading gpt, please read whole flash using "mtk rf flash.bin".')
             else:
                 guid_gpt.print()
@@ -863,7 +876,8 @@ class DaHandler(metaclass=LogBase):
                 if os.path.exists(os.path.join(self.mtk.config.hwparam_path, "hwparam.json")):
                     os.remove(os.path.join(self.mtk.config.hwparam_path, "hwparam.json"))
             mtk.daloader.shutdown(bootmode=0)
-            print("Reset command was sent. Disconnect usb cable to power off.")
+            # print("Reset command was sent. Disconnect usb cable to power off.")
+            print("mtk[resetInfo-1-reset devices success, need disconnect usb cable to power off]")
         elif cmd == "da":
             subcmd = args.subcmd
             if subcmd is None:

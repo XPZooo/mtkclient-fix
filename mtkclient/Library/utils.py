@@ -220,11 +220,11 @@ class Progress:
                     else:
                         hinfo = "%02ds left" % sec
 
-                print_progress(prog, 100, prefix='Progress:',
-                               suffix=prefix + f' (0x%X/0x%X, {hinfo}) %0.2f MB/s' % (pos // self.pagesize,
-                                                                                                total // self.pagesize,
-                                                                                                throughput),
-                               bar_length=10)
+                # print_progress(prog, 100, prefix='Progress:',
+                #                suffix=prefix + f' (0x%X/0x%X, {hinfo}) %0.2f MB/s' % (pos // self.pagesize,
+                #                                                                                 total // self.pagesize,
+                #                                                                                 throughput),
+                #                bar_length=10)
                 self.prog = prog
                 self.progpos = pos
                 self.progtime = t0
@@ -813,6 +813,7 @@ def print_progress(iteration, total, prefix='', suffix='', decimals=1, bar_lengt
         decimals    - Optional  : positive number of decimals in percent complete (Int)
         bar_length  - Optional  : character length of bar (Int)
     """
+    return 
     str_format = "{0:." + str(decimals) + "f}"
     percents = str_format.format(100 * (iteration / float(total)))
     filled_length = int(round(bar_length * iteration / float(total)))

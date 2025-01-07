@@ -221,6 +221,7 @@ class DAconfig(metaclass=LogBase):
                 with open(preloader, "rb") as rf:
                     data = rf.read()
             else:
+                print("mtk[preloaderError-1-Mtk device support loader doesn't exist.]")
                 self.error(f"Preloader : {preloader} doesn't exist. Aborting.")
                 exit(1)
         try:

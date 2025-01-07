@@ -142,6 +142,7 @@ class UsbClass(DeviceClass):
                 self.backend.lib.libusb_set_option(self.backend.ctx, 1)
             except Exception:
                 self.backend = None
+        print(f"mtk[initDep-1-|{self.backend}.|]")
 
     def set_fast_mode(self, enabled):
         self.fast = bool(enabled)
@@ -300,6 +301,7 @@ class UsbClass(DeviceClass):
         for dev in devices:
             for usbid in self.portconfig:
                 if dev.idProduct == usbid[1] and dev.idVendor == usbid[0]:
+                    print(f"mtk[findUSBDev-1-Find dev.idProduct {dev.idProduct}  dev.idVendor {dev.idVendor}.]")
                     self.device = dev
                     self.vid = dev.idVendor
                     self.pid = dev.idProduct
@@ -318,11 +320,14 @@ class UsbClass(DeviceClass):
             if e.strerror == "Configuration not set":
                 self.device.set_configuration()
                 self.configuration = self.device.get_active_configuration()
+                self.error("Get configuration failed 1.")
             if e.errno == 13:
                 self.backend = usb.backend.libusb0.get_backend()
                 self.device = usb.core.find(idVendor=self.vid, idProduct=self.pid, backend=self.backend)
+                self.error("Get configuration failed 2.")
         if self.configuration is None:
             self.error("Couldn't get device configuration.")
+            print("mtk[usbConfigError-1-Usb config setup failed, pc need restart?  Is driver OK?]")
             return False
         if self.interface == -1:
             for interfacenum in range(0, self.configuration.bNumInterfaces):
@@ -380,6 +385,8 @@ class UsbClass(DeviceClass):
                                                       custom_match=lambda xe: \
                                                           usb.util.endpoint_direction(xe.bEndpointAddress) ==
                                                           usb.util.ENDPOINT_IN)
+            print(f'mtk[devUsbInitOK-1-Usb dev vid:{hex(self.device.idVendor)} pid:{hex(self.device.idProduct)} init ok.]')
+            sys.stdout.flush()
             self.connected = True
             return True
         print("Couldn't find CDC interface. Aborting.")
@@ -544,6 +551,8 @@ class UsbClass(DeviceClass):
                 error = str(e.strerror)
                 if "timed out" in error:
                     self.debug("Timed out")
+                    print("mtk[usbTimeout-1-Usb conn time out.]") 
+                    sys.stdout.flush()
                     if timeout == maxtimeout:
                         return b""
                     timeout += 1
@@ -842,4 +851,6 @@ class Scsi:
 
     def close(self):
         self.usb.close()
+        print('mtk:working done')
+        sys.stdout.flush()
         return True

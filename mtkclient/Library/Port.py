@@ -152,13 +152,14 @@ class Port(metaclass=LogBase):
 
     def handshake(self, maxtries=None, loop=0):
         counter = 0
-        print("mtk[wait-dev-connect]")
+        print(f"mtk[waitDev-1-Wait device connect.]")
         while not self.cdc.connected:
             try:
                 if maxtries is not None and counter == maxtries:
                     break
                 counter += 1
                 if self.cdc.connect() and self.run_handshake():
+                    print("mtk[handshakeOK-1-Device handshake success.]")
                     return True
                 else:
                 #   if loop == 5:
@@ -182,6 +183,9 @@ class Port(metaclass=LogBase):
                 if "access denied" in str(serr):
                     self.warning(str(serr))
                 self.debug(str(serr))
+                if "Operation not supported" in str(serr):
+                    self.info(f'************** handshake driver not support: {str(serr)}')
+                    print("mtk[usbExcept-1-Check if the driver is OK, pc need restart?]")
                 pass
         return False
 

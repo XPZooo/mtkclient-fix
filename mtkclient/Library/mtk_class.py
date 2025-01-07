@@ -117,6 +117,7 @@ class Mtk(metaclass=LogBase):
         return data
 
     def parse_preloader(self, preloader):
+        print(f"mtk[codeErrorFind-1-Prase preloader not support.]")
         if isinstance(preloader, str):
             if os.path.exists(preloader):
                 with open(preloader, "rb") as rf:
