@@ -95,7 +95,7 @@ class DaHandler(metaclass=LogBase):
                 mtk.daloader.reinit()
                 return mtk
         if mtk.config.target_config is None:
-            print(f'mtk[reStartDev-1-State file not exist, reset device.]')
+            print(f'mtk[reStartDev-1-State file not exist, reset device.]') 
             self.info("Please disconnect, start mtkclient and reconnect.")
             return None
         if mtk.config.target_config["sbc"] and not mtk.config.is_brom and mtk.config.loader is None:
