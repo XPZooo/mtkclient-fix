@@ -411,7 +411,7 @@ class DAXFlash(metaclass=LogBase):
         storage, parttype, length = part_info
         if display:
             self.info(f"Formatting addr {hex(addr)} with length {hex(length)}, please standby....")
-            self.mtk.daloader.progress.show_progress("Erasing", 0, length, True)
+            # self.mtk.daloader.progress.show_progress("Erasing", 0, length, True)
         if self.xsend(self.Cmd.FORMAT):
             status = self.status()
             if status == 0:
