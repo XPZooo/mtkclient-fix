@@ -118,29 +118,30 @@ class Mtk(metaclass=LogBase):
 
     def parse_preloader(self, preloader):
         print(f"mtk[codeErrorFind-1-Prase preloader not support.]")
-        if isinstance(preloader, str):
-            if os.path.exists(preloader):
-                with open(preloader, "rb") as rf:
-                    data = rf.read()
-        else:
-            data = preloader
-        data = bytearray(data)
-        magic = unpack("<I", data[:4])[0]
-        if magic == 0x014D4D4D:
-            self.info("Valid preloader detected.")
-            daaddr = unpack("<I", data[0x1C:0x20])[0]
-            # dasize = unpack("<I", data[0x20:0x24])[0]
-            # maxsize = unpack("<I", data[0x24:0x28])[0]
-            # content_offset = unpack("<I", data[0x28:0x2C])[0]
-            # sig_length = unpack("<I", data[0x2C:0x30])[0]
-            jump_offset = unpack("<I", data[0x30:0x34])[0]
-            daaddr = jump_offset + daaddr
-            dadata = data[jump_offset:]
-        else:
-            self.warning("Preloader detected as shellcode, might fail to run.")
-            daaddr = self.config.chipconfig.da_payload_addr
-            dadata = data
-        return daaddr, dadata
+        #if isinstance(preloader, str):
+        #    if os.path.exists(preloader):
+        #        with open(preloader, "rb") as rf:
+        #            data = rf.read()
+        #else:
+        #    data = preloader
+        #data = bytearray(data)
+        #magic = unpack("<I", data[:4])[0]
+        #if magic == 0x014D4D4D:
+        #    self.info("Valid preloader detected.")
+        #    daaddr = unpack("<I", data[0x1C:0x20])[0]
+        #    # dasize = unpack("<I", data[0x20:0x24])[0]
+        #    # maxsize = unpack("<I", data[0x24:0x28])[0]
+        #    # content_offset = unpack("<I", data[0x28:0x2C])[0]
+        #    # sig_length = unpack("<I", data[0x2C:0x30])[0]
+        #    jump_offset = unpack("<I", data[0x30:0x34])[0]
+        #    daaddr = jump_offset + daaddr
+        #    dadata = data[jump_offset:]
+        #else:
+        #    self.warning("Preloader detected as shellcode, might fail to run.")
+        #    daaddr = self.config.chipconfig.da_payload_addr
+        #    dadata = data
+        # return daaddr, dadata
+        return bytearray(), bytearray()
 
     def setup(self, vid=None, pid=None, interface=None, serialportname: str = None):
         if vid is None:
