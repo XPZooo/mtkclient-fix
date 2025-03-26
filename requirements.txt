@@ -4,14 +4,14 @@ pyusb
 pycryptodome
 pycryptodomex
 colorama
-shiboken6
-pyside6
+#shiboken6
+#pyside6
 mock
 pyserial
 flake8
 keystone-engine
-capstone
+#capstone
 unicorn
-keystone
+#keystone
 fusepy
 
